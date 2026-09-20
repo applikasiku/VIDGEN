@@ -10,7 +10,7 @@ let schemaReadyPromise;
 
 async function ensureSchema(env) {
   if (!schemaReadyPromise) {
-    schemaReadyPromise = env.DB.exec(`
+    schemaReadyPromise = env.DATABASE_V2.exec(`
       PRAGMA foreign_keys = ON;
 
       CREATE TABLE IF NOT EXISTS users (
@@ -155,7 +155,7 @@ export default {
       return json({
         ok: true,
         app: env.APP_NAME || "VIDGEN",
-        version: env.APP_VERSION || "1.0.2",
+        version: env.APP_VERSION || "1.0.3",
         runtime: "cloudflare-workers",
         time: new Date().toISOString()
       });
@@ -171,7 +171,7 @@ export default {
         if (providerId) {
           const state = b.state || b.status || "updated";
           const progress = state === "completed" ? 100 : state === "failed" ? 0 : 50;
-          await env.DB.prepare("UPDATE jobs SET status=?,progress=?,result_json=?,updated_at=CURRENT_TIMESTAMP WHERE provider_job_id=?")
+          await env.DATABASE_V2.prepare("UPDATE jobs SET status=?,progress=?,result_json=?,updated_at=CURRENT_TIMESTAMP WHERE provider_job_id=?")
             .bind(state, progress, JSON.stringify(b), providerId).run();
         }
         return json({ ok: true });
@@ -186,7 +186,7 @@ export default {
       if (url.pathname === "/api/bootstrap") {
         const drive = await driveStatus(env, session.id);
         const providers = providerCatalog(env);
-        const projects = await env.DB.prepare("SELECT id,title,status,aspect_ratio,resolution,created_at FROM projects WHERE user_id=? ORDER BY created_at DESC LIMIT 12").bind(session.id).all();
+        const projects = await env.DATABASE_V2.prepare("SELECT id,title,status,aspect_ratio,resolution,created_at FROM projects WHERE user_id=? ORDER BY created_at DESC LIMIT 12").bind(session.id).all();
         return withSession(json({ mode: "cloudflare", providers, drive, projects: projects.results || [] }), session);
       }
       if (url.pathname === "/api/storyboard" && request.method === "POST") {
@@ -196,10 +196,10 @@ export default {
       if (url.pathname === "/api/projects" && request.method === "POST") {
         const b = await bodyJson(request);
         const id = uid("prj");
-        await env.DB.prepare(`INSERT INTO projects (id,user_id,title,genre,concept,duration_seconds,style,aspect_ratio,resolution,router_mode,router_priority,save_to_drive,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        await env.DATABASE_V2.prepare(`INSERT INTO projects (id,user_id,title,genre,concept,duration_seconds,style,aspect_ratio,resolution,router_mode,router_priority,save_to_drive,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
           .bind(id, session.id, safeText(b.title || "Untitled", 160), safeText(b.genre, 160), safeText(b.concept, 2000), Number(b.duration || 0), safeText(b.style || "cinematic", 50), safeText(b.aspectRatio || "16:9", 10), safeText(b.resolution || "1080p", 20), safeText(b.vendor || "auto", 40), safeText(b.priority || "quality", 40), b.saveToDrive === false ? 0 : 1, "draft").run();
         for (const [i, s] of (b.scenes || []).entries()) {
-          await env.DB.prepare(`INSERT INTO scenes (id,project_id,scene_index,title,prompt,start_seconds,duration_seconds,vendor,status) VALUES (?,?,?,?,?,?,?,?,?)`)
+          await env.DATABASE_V2.prepare(`INSERT INTO scenes (id,project_id,scene_index,title,prompt,start_seconds,duration_seconds,vendor,status) VALUES (?,?,?,?,?,?,?,?,?)`)
             .bind(s.id || uid("scn"), id, i, safeText(s.title, 160), safeText(s.prompt, 5000), Number(s.start || 0), Number(s.duration || 8), safeText(s.vendor || "auto", 40), "draft").run();
         }
         return withSession(json({ ok: true, id }, 201), session);
@@ -207,9 +207,9 @@ export default {
       if (url.pathname === "/api/generate" && request.method === "POST") {
         const b = await bodyJson(request);
         const projectId = safeText(b.projectId, 100);
-        const project = await env.DB.prepare("SELECT * FROM projects WHERE id=? AND user_id=?").bind(projectId, session.id).first();
+        const project = await env.DATABASE_V2.prepare("SELECT * FROM projects WHERE id=? AND user_id=?").bind(projectId, session.id).first();
         if (!project) return withSession(json({ error: "Project tidak ditemukan." }, 404), session);
-        const scenes = (await env.DB.prepare("SELECT * FROM scenes WHERE project_id=? ORDER BY scene_index").bind(projectId).all()).results || [];
+        const scenes = (await env.DATABASE_V2.prepare("SELECT * FROM scenes WHERE project_id=? ORDER BY scene_index").bind(projectId).all()).results || [];
         const created = [];
         for (const s of scenes.slice(0, 30)) {
           const provider = pickProvider({ vendor: project.router_mode, priority: project.router_priority, sceneIndex: s.scene_index });
@@ -217,30 +217,30 @@ export default {
           const scene = { prompt: s.prompt, duration: s.duration_seconds, aspectRatio: project.aspect_ratio, resolution: project.resolution };
           try {
             const result = await createProviderTask(env, provider, scene, request);
-            await env.DB.prepare("INSERT INTO jobs (id,project_id,job_type,provider,provider_job_id,status,progress,payload_json,result_json) VALUES (?,?,?,?,?,?,?,?,?)")
+            await env.DATABASE_V2.prepare("INSERT INTO jobs (id,project_id,job_type,provider,provider_job_id,status,progress,payload_json,result_json) VALUES (?,?,?,?,?,?,?,?,?)")
               .bind(jobId, projectId, "scene_generation", provider, result.taskId || null, result.demo ? "demo" : "submitted", result.demo ? 18 : 5, JSON.stringify(scene), JSON.stringify(result)).run();
-            await env.DB.prepare("UPDATE scenes SET vendor=?,provider_job_id=?,status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
+            await env.DATABASE_V2.prepare("UPDATE scenes SET vendor=?,provider_job_id=?,status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
               .bind(provider, result.taskId || null, result.demo ? "demo" : "submitted", s.id).run();
             created.push({ jobId, sceneId: s.id, provider, taskId: result.taskId, demo: Boolean(result.demo) });
           } catch (error) {
-            await env.DB.prepare("INSERT INTO jobs (id,project_id,job_type,provider,status,progress,error_message,payload_json) VALUES (?,?,?,?,?,?,?,?)")
+            await env.DATABASE_V2.prepare("INSERT INTO jobs (id,project_id,job_type,provider,status,progress,error_message,payload_json) VALUES (?,?,?,?,?,?,?,?)")
               .bind(jobId, projectId, "scene_generation", provider, "failed", 0, String(error.message || error), JSON.stringify(scene)).run();
             created.push({ jobId, sceneId: s.id, provider, error: String(error.message || error) });
           }
         }
-        await env.DB.prepare("UPDATE projects SET status='rendering',updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(projectId).run();
+        await env.DATABASE_V2.prepare("UPDATE projects SET status='rendering',updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(projectId).run();
         return withSession(json({ ok: true, jobs: created }), session);
       }
       if (url.pathname === "/api/jobs") {
         const projectId = url.searchParams.get("projectId") || "";
-        const rows = await env.DB.prepare("SELECT j.* FROM jobs j JOIN projects p ON p.id=j.project_id WHERE j.project_id=? AND p.user_id=? ORDER BY j.created_at DESC").bind(projectId, session.id).all();
+        const rows = await env.DATABASE_V2.prepare("SELECT j.* FROM jobs j JOIN projects p ON p.id=j.project_id WHERE j.project_id=? AND p.user_id=? ORDER BY j.created_at DESC").bind(projectId, session.id).all();
         return withSession(json({ jobs: rows.results || [] }), session);
       }
       if (url.pathname === "/api/storage/upload" && request.method === "POST") {
         const contentType = request.headers.get("content-type") || "application/octet-stream";
         const name = safeText(url.searchParams.get("name") || `upload-${Date.now()}`, 180).replace(/[^a-zA-Z0-9._-]/g, "-");
         const key = `${session.id}/uploads/${Date.now()}-${name}`;
-        await env.MEDIA.put(key, request.body, { httpMetadata: { contentType } });
+        await env.STORAGE_V2.put(key, request.body, { httpMetadata: { contentType } });
         return withSession(json({ ok: true, key }), session);
       }
       if (url.pathname === "/api/drive/connect") {
