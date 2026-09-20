@@ -29,7 +29,7 @@ export async function ensureSession(request, env) {
     id = uid("usr");
     fresh = true;
   }
-  await env.DB.prepare(
+  await env.DATABASE_V2.prepare(
     "INSERT OR IGNORE INTO users (id) VALUES (?)"
   ).bind(id).run();
   return { id, fresh, cookie: fresh ? sessionCookie(id) : null };
