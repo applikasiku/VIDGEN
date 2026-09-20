@@ -1,125 +1,118 @@
 # VIDGEN V1
 
-VIDGEN adalah **AI Multi‑Vendor Music Video Generator**. V1 ini dibuat sebagai repository full-stack yang bisa dikembangkan menjadi produksi.
+VIDGEN adalah **AI Multi-Vendor Music Video Generator** berbasis Cloudflare Workers + Static Assets.
 
-## Yang sudah ada
+## Status deployment
 
-- PWA responsif desktop/mobile.
-- Upload & preview audio lokal.
-- Storyboard generator (backend Cloudflare + fallback lokal).
-- Scene editor & timeline.
-- Multi-vendor UI + Auto Router: Seedance, Google Veo, Runway, Luma.
-- Prioritas router: Quality, Balanced, Fast, Cost.
-- Fallback vendor switch.
-- D1 schema: users, OAuth token, projects, scenes, jobs.
-- R2 upload endpoint.
-- Google OAuth + scope `drive.file`.
-- Google Drive resumable upload dari R2 ke folder `VIDGEN`.
-- Luma adapter nyata bila API key tersedia.
-- Veo adapter untuk Vertex AI `predictLongRunning` bila token/project tersedia.
-- Seedance dan Runway adapter configurable agar endpoint akun/region bisa disesuaikan tanpa merombak aplikasi.
-- PWA manifest + service worker.
-- GitHub Actions Cloudflare deploy workflow.
+Repository ini sudah disiapkan untuk deployment Cloudflare dengan:
 
-> V1 belum melakukan final stitching/FFmpeg di Worker. Untuk videoclip final panjang, gunakan worker/container terpisah (Cloudflare Containers, Railway, VPS, atau service FFmpeg) lalu simpan hasil final ke R2 dan panggil endpoint archive Drive.
+- Cloudflare Worker API + PWA/static assets dalam satu deployment.
+- D1 database binding `DB`.
+- R2 media binding `MEDIA`.
+- **Automatic provisioning** D1 dan R2 pada deployment pertama (Wrangler 4.45+).
+- GitHub Actions auto-deploy pada push ke `main`.
+- D1 migrations otomatis sesudah Worker berhasil dipublish.
+- Health check publik di `/api/health`.
+- Google Drive OAuth + resumable archive.
+- Adapter Seedance, Google Veo, Runway, dan Luma.
+- API keys tetap di Cloudflare Secrets, tidak disimpan di GitHub.
 
 ## Arsitektur
 
 ```text
-Browser / PWA
-    ↓
-Cloudflare Worker + Static Assets
-    ├── D1: project / scene / job / OAuth
-    ├── R2: audio / reference / scene / final
-    ├── Auto Router
-    │    ├── Seedance
-    │    ├── Veo
-    │    ├── Runway
-    │    └── Luma
-    └── Google Drive OAuth → /VIDGEN archive
+GitHub (applikasiku/VIDGEN)
+          ↓
+Cloudflare Workers
+├── Static Assets / PWA
+├── Worker API
+├── D1 (DB)
+├── R2 (MEDIA)
+├── Seedance / Veo / Runway / Luma
+└── Google Drive archive
 ```
 
-## Local preview frontend
+## Deploy melalui Cloudflare Dashboard — paling mudah
 
-Frontend bisa langsung dibuka dengan server statis, tetapi API akan masuk **Demo lokal**.
+1. Buka Cloudflare Dashboard → **Workers & Pages**.
+2. Pilih **Create / Import a repository**.
+3. Hubungkan GitHub dan pilih repository `applikasiku/VIDGEN`.
+4. Branch production: `main`.
+5. Build command dapat dikosongkan.
+6. Deploy command: `npm run deploy`.
+7. Simpan dan deploy.
 
-```bash
-cd vidgen-v1/public
-python -m http.server 8080
+D1 dan R2 menggunakan draft bindings tanpa ID/nama akun-spesifik. Wrangler akan mem-provision resource dan menghubungkannya ke Worker pada deployment pertama.
+
+Setelah deploy, cek:
+
+```text
+https://<worker-domain>/api/health
 ```
 
-Buka `http://localhost:8080`.
+Respons yang benar berisi `"ok": true`.
 
-## Local full-stack Cloudflare
+## Deploy melalui GitHub Actions
 
-1. Install Node.js 20/22.
-2. Jalankan:
+Workflow tersedia di:
+
+```text
+.github/workflows/deploy-cloudflare.yml
+```
+
+Tambahkan repository secrets di GitHub:
+
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+
+Lalu push ke `main` atau jalankan workflow secara manual.
+
+API token Cloudflare harus memiliki izin yang cukup untuk Workers Scripts serta provisioning D1 dan R2.
+
+## Local development
+
+Gunakan Node.js 20+:
 
 ```bash
 npm install
-npx wrangler login
-```
-
-3. Buat D1:
-
-```bash
-npx wrangler d1 create vidgen-db
-```
-
-Salin `database_id` ke `wrangler.jsonc`.
-
-4. Buat R2 bucket:
-
-```bash
-npx wrangler r2 bucket create vidgen-media
-```
-
-5. Terapkan migration:
-
-```bash
-npm run db:migrate:remote
-```
-
-6. Salin `.dev.vars.example` ke `.dev.vars` dan isi secret untuk pengembangan lokal.
-
-7. Jalankan:
-
-```bash
+npm run db:migrate:local
 npm run dev
 ```
 
+Buka URL yang diberikan Wrangler.
+
 ## Production secrets
 
-Jangan taruh API key di GitHub. Gunakan:
+Jangan masukkan key berikut ke repository. Tambahkan melalui Cloudflare → Worker → Settings → Variables and Secrets atau Wrangler:
 
 ```bash
 npx wrangler secret put SESSION_SECRET
+
 npx wrangler secret put GOOGLE_CLIENT_ID
 npx wrangler secret put GOOGLE_CLIENT_SECRET
-npx wrangler secret put LUMA_API_KEY
-npx wrangler secret put RUNWAY_API_KEY
-npx wrangler secret put RUNWAY_API_BASE
+
 npx wrangler secret put SEEDANCE_API_KEY
 npx wrangler secret put SEEDANCE_API_BASE
+
+npx wrangler secret put RUNWAY_API_KEY
+npx wrangler secret put RUNWAY_API_BASE
+
+npx wrangler secret put LUMA_API_KEY
+
 npx wrangler secret put VEO_ACCESS_TOKEN
 npx wrangler secret put VEO_PROJECT_ID
 ```
 
-Untuk Vertex AI produksi, sebaiknya V1.1 mengganti `VEO_ACCESS_TOKEN` statis dengan service-account/OAuth token minting supaya token tidak perlu diperbarui manual.
+Provider tanpa credential akan tetap tampil sebagai **demo/fallback mode**.
 
-## Google OAuth / Drive
+## Google Drive
 
-Di Google Cloud Console:
-
-- Aktifkan **Google Drive API**.
-- Buat OAuth Web Client.
-- Tambahkan redirect URI:
+Aktifkan Google Drive API dan buat OAuth Web Client. Redirect URI:
 
 ```text
 https://DOMAIN-VIDGEN/oauth/google/callback
 ```
 
-- Scope yang dipakai aplikasi:
+Scope:
 
 ```text
 openid
@@ -128,29 +121,20 @@ profile
 https://www.googleapis.com/auth/drive.file
 ```
 
-`drive.file` membatasi akses aplikasi pada file yang dibuat/dipilih untuk aplikasi, sehingga lebih sempit daripada akses seluruh Drive.
+Output final dapat diarsipkan ke folder `VIDGEN` di Google Drive pengguna.
 
-## Deploy Cloudflare
-
-Setelah D1/R2 dan secrets siap:
+## Perintah penting
 
 ```bash
-npm install
+npm run dev
+npm run cf:check
+npm run deploy:worker
+npm run db:migrate:remote
 npm run deploy
 ```
 
-### GitHub → Cloudflare
+`npm run deploy` melakukan **Worker deploy → D1 migration** sehingga deployment pertama dapat mem-provision resource terlebih dahulu.
 
-Repository ini juga menyertakan `.github/workflows/deploy-cloudflare.yml`.
-Tambahkan GitHub Repository Secrets:
+## Catatan produksi
 
-- `CLOUDFLARE_API_TOKEN`
-- `CLOUDFLARE_ACCOUNT_ID`
-
-Push ke branch `main` akan menjalankan deploy.
-
-Alternatif yang lebih sederhana: hubungkan repository langsung menggunakan Cloudflare Workers & Pages GitHub App.
-
-## Catatan GitHub Pages
-
-GitHub Pages hanya cocok untuk frontend demo. **Jangan gunakan GitHub Pages sebagai deployment produksi VIDGEN**, karena tidak menyediakan backend rahasia untuk vendor API, OAuth Google Drive, D1, atau R2. Simpan source di GitHub dan deploy runtime ke Cloudflare.
+V1 belum melakukan final stitching/FFmpeg di Worker. Scene video dapat dibuat oleh vendor dan disimpan ke R2; composer video panjang sebaiknya memakai service/container terpisah sebelum hasil akhirnya diarsipkan ke Google Drive.
