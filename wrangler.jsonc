@@ -24,7 +24,8 @@
   ],
   "r2_buckets": [
     {
-      "binding": "STORAGE_V2"
+      "binding": "STORAGE_V2",
+      "bucket_name": "vidgen-media"
     }
   ],
   "vars": {
