@@ -1,8 +1,13 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "vidgen-v1",
+  "name": "vidgen",
   "main": "./src/index.js",
   "compatibility_date": "2026-09-21",
+  "workers_dev": true,
+  "preview_urls": true,
+  "observability": {
+    "enabled": true
+  },
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
@@ -11,23 +16,22 @@
   },
   "d1_databases": [
     {
-      "binding": "DB",
-      "database_name": "vidgen-db",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID"
+      "binding": "DB"
     }
   ],
   "r2_buckets": [
     {
-      "binding": "MEDIA",
-      "bucket_name": "vidgen-media"
+      "binding": "MEDIA"
     }
   ],
   "vars": {
     "APP_NAME": "VIDGEN",
     "APP_ENV": "production",
+    "APP_VERSION": "1.0.1",
     "GOOGLE_DRIVE_FOLDER": "VIDGEN",
     "LUMA_MODEL": "ray-2",
     "VEO_MODEL": "veo-3.1-generate-001",
+    "VEO_LOCATION": "us-central1",
     "SEEDANCE_MODEL": "doubao-seedance-1-5-pro-251215"
   }
 }
