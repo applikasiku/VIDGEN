@@ -7,8 +7,8 @@ VIDGEN adalah **AI Multi-Vendor Music Video Generator** berbasis Cloudflare Work
 Repository ini sudah disiapkan untuk deployment Cloudflare dengan:
 
 - Cloudflare Worker API + PWA/static assets dalam satu deployment.
-- D1 database binding `DB`.
-- R2 media binding `MEDIA`.
+- D1 database binding `DATABASE_V2`.
+- R2 media binding `STORAGE_V2`.
 - **Automatic provisioning** D1 dan R2 pada deployment pertama (Wrangler 4.45+).
 - GitHub Actions auto-deploy pada push ke `main`.
 - D1 migrations otomatis sesudah Worker berhasil dipublish.
@@ -153,3 +153,13 @@ Setelah deployment sukses, endpoint pemeriksaan:
 ```
 
 Endpoint ini tidak bergantung pada D1 dan akan tetap merespons saat Worker berhasil dipublish.
+
+
+## Perbaikan deployment 1.0.3
+
+Cloudflare Workers Builds untuk project ini mengharapkan nama Worker `vidgen` dan akan menimpa nama lain melalui CI. Karena draft binding lama `DB` memicu auto-provisioning resource bernama `vidgen-db` yang sudah ada, binding production diganti menjadi:
+
+- D1: `DATABASE_V2`
+- R2: `STORAGE_V2`
+
+Kode Worker sudah diperbarui untuk memakai `env.DATABASE_V2` dan `env.STORAGE_V2`. Dengan nama binding baru, automatic provisioning tidak lagi memakai draft binding lama yang berbenturan.
