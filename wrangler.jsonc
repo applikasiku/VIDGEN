@@ -1,4 +1,4 @@
-// Cloudflare build trigger: VIDGEN v1.0.3 current config
+// Cloudflare build trigger: VIDGEN v1.0.4 current config
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "vidgen",
@@ -31,7 +31,7 @@
   "vars": {
     "APP_NAME": "VIDGEN",
     "APP_ENV": "production",
-    "APP_VERSION": "1.0.3",
+    "APP_VERSION": "1.0.4",
     "GOOGLE_DRIVE_FOLDER": "VIDGEN",
     "LUMA_MODEL": "ray-2",
     "VEO_MODEL": "veo-3.1-generate-001",
@@ -39,3 +39,4 @@
     "SEEDANCE_MODEL": "doubao-seedance-1-5-pro-251215"
   }
 }
+

@@ -103,6 +103,7 @@ async function ensureFolder(accessToken, folderName) {
 }
 
 export async function archiveR2ToDrive(env, userId, { r2Key, fileName, mimeType = "video/mp4" }) {
+  if (!r2Key || !r2Key.startsWith(`${userId}/`)) throw Object.assign(new Error("File bukan milik sesi ini."), { status: 403 });
   const object = await env.STORAGE_V2.get(r2Key);
   if (!object) throw new Error("File R2 tidak ditemukan.");
   const accessToken = await getToken(env, userId);
@@ -129,3 +130,4 @@ export async function archiveR2ToDrive(env, userId, { r2Key, fileName, mimeType 
   if (!upload.ok) throw new Error(`Upload Google Drive gagal: ${await upload.text()}`);
   return { ...(await upload.json()), folderId };
 }
+

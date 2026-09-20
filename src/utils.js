@@ -11,10 +11,13 @@ export function uid(prefix = "id") {
 
 export function parseCookies(request) {
   const raw = request.headers.get("cookie") || "";
-  return Object.fromEntries(raw.split(";").filter(Boolean).map(part => {
+  const cookies = {};
+  for (const part of raw.split(";")) {
     const i = part.indexOf("=");
-    return [part.slice(0, i).trim(), decodeURIComponent(part.slice(i + 1).trim())];
-  }));
+    if (i < 1) continue;
+    try { cookies[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim()); } catch {}
+  }
+  return cookies;
 }
 
 export function sessionCookie(id) {
@@ -64,3 +67,4 @@ export async function verifyState(state, env) {
 export function safeText(value, max = 4000) {
   return String(value ?? "").trim().slice(0, max);
 }
+

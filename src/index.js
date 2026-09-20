@@ -6,11 +6,11 @@ import { createRunwayVideo } from "./providers/runway.js";
 import { createVeoVideo } from "./providers/veo.js";
 import { googleAuthStart, googleAuthCallback, driveStatus, archiveR2ToDrive } from "./drive.js";
 
-let schemaReadyPromise;
+let schemaReady = false;
 
 async function ensureSchema(env) {
-  if (!schemaReadyPromise) {
-    schemaReadyPromise = env.DATABASE_V2.exec(`
+  if (!schemaReady) {
+    const schema = `
       PRAGMA foreign_keys = ON;
 
       CREATE TABLE IF NOT EXISTS users (
@@ -96,26 +96,31 @@ async function ensureSchema(env) {
       CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id, created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_scenes_project ON scenes(project_id, scene_index);
       CREATE INDEX IF NOT EXISTS idx_jobs_project ON jobs(project_id, created_at DESC);
-    `).catch((error) => {
-      schemaReadyPromise = null;
-      throw error;
-    });
+    `;
+    await env.DATABASE_V2.batch(schema.split(";").map(sql => sql.trim()).filter(Boolean).map(sql => env.DATABASE_V2.prepare(sql)));
+    schemaReady = true;
   }
-  return schemaReadyPromise;
 }
 
 function withSession(response, session) {
-  if (session.cookie) response.headers.append("set-cookie", session.cookie);
+  if (session?.cookie) response.headers.append("set-cookie", session.cookie);
   return response;
 }
 
 async function bodyJson(request) {
-  try { return await request.json(); } catch { return {}; }
+  try {
+    const body = await request.json();
+    if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error();
+    return body;
+  } catch { throw Object.assign(new Error("Permintaan JSON tidak valid."), { status: 400 }); }
 }
 
 function storyboardFrom(body) {
-  const count = Math.min(30, Math.max(4, Number(body.sceneCount || 8)));
-  const duration = Math.min(10, Math.max(4, Number(body.sceneDuration || 8)));
+  const requestedCount = Number(body.sceneCount ?? 8);
+  const requestedDuration = Number(body.sceneDuration ?? 8);
+  if (!Number.isFinite(requestedCount) || !Number.isFinite(requestedDuration)) throw Object.assign(new Error("Jumlah dan durasi scene harus berupa angka."), { status: 400 });
+  const count = Math.min(30, Math.max(4, Math.floor(requestedCount)));
+  const duration = Math.min(10, Math.max(4, requestedDuration));
   const style = safeText(body.style || "cinematic", 80);
   const genre = safeText(body.genre || "music video", 120);
   const concept = safeText(body.concept || "cinematic performance and storytelling", 1000);
@@ -155,34 +160,34 @@ export default {
       return json({
         ok: true,
         app: env.APP_NAME || "VIDGEN",
-        version: env.APP_VERSION || "1.0.3",
+        version: env.APP_VERSION || "1.0.4",
         runtime: "cloudflare-workers",
         time: new Date().toISOString()
       });
     }
 
-    await ensureSchema(env);
-
-    // Provider callbacks are server-to-server and do not need a browser session.
-    if (url.pathname === "/api/webhooks/luma" && request.method === "POST") {
-      try {
-        const b = await bodyJson(request);
-        const providerId = b.id || b.generation_id;
-        if (providerId) {
-          const state = b.state || b.status || "updated";
-          const progress = state === "completed" ? 100 : state === "failed" ? 0 : 50;
-          await env.DATABASE_V2.prepare("UPDATE jobs SET status=?,progress=?,result_json=?,updated_at=CURRENT_TIMESTAMP WHERE provider_job_id=?")
-            .bind(state, progress, JSON.stringify(b), providerId).run();
-        }
-        return json({ ok: true });
-      } catch (error) {
-        return json({ error: String(error.message || error) }, 500);
-      }
-    }
-
-    const session = await ensureSession(request, env);
-
+    let session;
     try {
+      await ensureSchema(env);
+
+      // Provider callbacks are server-to-server and do not need a browser session.
+      if (url.pathname === "/api/webhooks/luma" && request.method === "POST") {
+        try {
+          const b = await bodyJson(request);
+          const providerId = b.id || b.generation_id;
+          if (providerId) {
+            const state = b.state || b.status || "updated";
+            const progress = state === "completed" ? 100 : state === "failed" ? 0 : 50;
+            await env.DATABASE_V2.prepare("UPDATE jobs SET status=?,progress=?,result_json=?,updated_at=CURRENT_TIMESTAMP WHERE provider_job_id=?")
+              .bind(state, progress, JSON.stringify(b), providerId).run();
+          }
+          return json({ ok: true });
+        } catch (error) {
+          return json({ error: String(error.message || error) }, 500);
+        }
+      }
+
+      session = await ensureSession(request, env);
       if (url.pathname === "/api/bootstrap") {
         const drive = await driveStatus(env, session.id);
         const providers = providerCatalog(env);
@@ -195,13 +200,17 @@ export default {
       }
       if (url.pathname === "/api/projects" && request.method === "POST") {
         const b = await bodyJson(request);
+        if (!Array.isArray(b.scenes) || b.scenes.length === 0 || b.scenes.length > 30) throw Object.assign(new Error("Proyek harus berisi 1–30 scene."), { status: 400 });
+        if (b.scenes.some(s => !s || typeof s !== "object" || !safeText(s.prompt) || !Number.isFinite(Number(s.duration)) || Number(s.duration) <= 0 || !Number.isFinite(Number(s.start || 0)))) throw Object.assign(new Error("Data scene tidak valid."), { status: 400 });
+        if (!Number.isFinite(Number(b.duration || 0))) throw Object.assign(new Error("Durasi tidak valid."), { status: 400 });
         const id = uid("prj");
-        await env.DATABASE_V2.prepare(`INSERT INTO projects (id,user_id,title,genre,concept,duration_seconds,style,aspect_ratio,resolution,router_mode,router_priority,save_to_drive,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-          .bind(id, session.id, safeText(b.title || "Untitled", 160), safeText(b.genre, 160), safeText(b.concept, 2000), Number(b.duration || 0), safeText(b.style || "cinematic", 50), safeText(b.aspectRatio || "16:9", 10), safeText(b.resolution || "1080p", 20), safeText(b.vendor || "auto", 40), safeText(b.priority || "quality", 40), b.saveToDrive === false ? 0 : 1, "draft").run();
+        const statements = [env.DATABASE_V2.prepare(`INSERT INTO projects (id,user_id,title,genre,concept,duration_seconds,style,aspect_ratio,resolution,router_mode,router_priority,save_to_drive,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+          .bind(id, session.id, safeText(b.title || "Untitled", 160), safeText(b.genre, 160), safeText(b.concept, 2000), Number(b.duration || 0), safeText(b.style || "cinematic", 50), safeText(b.aspectRatio || "16:9", 10), safeText(b.resolution || "1080p", 20), safeText(b.vendor || "auto", 40), safeText(b.priority || "quality", 40), b.saveToDrive === false ? 0 : 1, "draft")];
         for (const [i, s] of (b.scenes || []).entries()) {
-          await env.DATABASE_V2.prepare(`INSERT INTO scenes (id,project_id,scene_index,title,prompt,start_seconds,duration_seconds,vendor,status) VALUES (?,?,?,?,?,?,?,?,?)`)
-            .bind(s.id || uid("scn"), id, i, safeText(s.title, 160), safeText(s.prompt, 5000), Number(s.start || 0), Number(s.duration || 8), safeText(s.vendor || "auto", 40), "draft").run();
+          statements.push(env.DATABASE_V2.prepare(`INSERT INTO scenes (id,project_id,scene_index,title,prompt,start_seconds,duration_seconds,vendor,status) VALUES (?,?,?,?,?,?,?,?,?)`)
+            .bind(uid("scn"), id, i, safeText(s.title, 160), safeText(s.prompt, 5000), Number(s.start || 0), Number(s.duration || 8), safeText(s.vendor || "auto", 40), "draft"));
         }
+        await env.DATABASE_V2.batch(statements);
         return withSession(json({ ok: true, id }, 201), session);
       }
       if (url.pathname === "/api/generate" && request.method === "POST") {
@@ -210,6 +219,7 @@ export default {
         const project = await env.DATABASE_V2.prepare("SELECT * FROM projects WHERE id=? AND user_id=?").bind(projectId, session.id).first();
         if (!project) return withSession(json({ error: "Project tidak ditemukan." }, 404), session);
         const scenes = (await env.DATABASE_V2.prepare("SELECT * FROM scenes WHERE project_id=? ORDER BY scene_index").bind(projectId).all()).results || [];
+        if (!scenes.length) return withSession(json({ error: "Proyek belum memiliki scene." }, 400), session);
         const created = [];
         for (const s of scenes.slice(0, 30)) {
           const provider = pickProvider({ vendor: project.router_mode, priority: project.router_priority, sceneIndex: s.scene_index });
@@ -228,7 +238,8 @@ export default {
             created.push({ jobId, sceneId: s.id, provider, error: String(error.message || error) });
           }
         }
-        await env.DATABASE_V2.prepare("UPDATE projects SET status='rendering',updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(projectId).run();
+        const status = created.every(j => j.error) ? "failed" : created.every(j => j.demo) ? "demo" : "rendering";
+        await env.DATABASE_V2.prepare("UPDATE projects SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(status, projectId).run();
         return withSession(json({ ok: true, jobs: created }), session);
       }
       if (url.pathname === "/api/jobs") {
@@ -260,7 +271,8 @@ export default {
       }
       return withSession(json({ error: "Not found" }, 404), session);
     } catch (error) {
-      return withSession(json({ error: String(error.message || error), stack: env.APP_ENV === "development" ? error.stack : undefined }, 500), session);
+      return withSession(json({ error: String(error.message || error), stack: env.APP_ENV === "development" ? error.stack : undefined }, error.status || 500), session);
     }
   }
 };
+

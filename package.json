@@ -1,6 +1,6 @@
 {
   "name": "vidgen",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": true,
   "type": "module",
   "engines": {
@@ -9,10 +9,11 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy:worker": "wrangler deploy",
-    "deploy": "wrangler deploy && wrangler d1 migrations apply DB --remote",
-    "db:migrate:local": "wrangler d1 migrations apply DB --local",
-    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
-    "cf:check": "wrangler deploy --dry-run"
+    "deploy": "wrangler deploy && wrangler d1 migrations apply DATABASE_V2 --remote",
+    "db:migrate:local": "wrangler d1 migrations apply DATABASE_V2 --local",
+    "db:migrate:remote": "wrangler d1 migrations apply DATABASE_V2 --remote",
+    "cf:check": "wrangler deploy --dry-run",
+    "test": "node --test tests/*.test.js"
   },
   "devDependencies": {
     "wrangler": "^4.102.0"
