@@ -138,3 +138,18 @@ npm run deploy
 ## Catatan produksi
 
 V1 belum melakukan final stitching/FFmpeg di Worker. Scene video dapat dibuat oleh vendor dan disimpan ke R2; composer video panjang sebaiknya memakai service/container terpisah sebelum hasil akhirnya diarsipkan ke Google Drive.
+
+
+## Perbaikan deployment 1.0.2
+
+Cloudflare automatic provisioning memberi nama resource berdasarkan Worker dan binding. Jika database lama bernama `vidgen-db` sudah ada tetapi belum terikat ke project, deployment draft binding dapat gagal dengan pesan `A database with that name already exists`.
+
+V1.0.2 menggunakan Worker `vidgen-production` sehingga resource production baru tidak berbenturan dengan resource lama. Backend juga menjalankan bootstrap schema idempotent (`CREATE TABLE IF NOT EXISTS`) sebelum endpoint database digunakan, jadi deploy command sederhana `npx wrangler deploy` tetap dapat menghasilkan aplikasi yang bisa dibuka tanpa langkah migration terpisah pada deployment pertama.
+
+Setelah deployment sukses, endpoint pemeriksaan:
+
+```text
+/api/health
+```
+
+Endpoint ini tidak bergantung pada D1 dan akan tetap merespons saat Worker berhasil dipublish.
