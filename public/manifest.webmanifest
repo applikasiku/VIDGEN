@@ -1,0 +1,12 @@
+{
+  "name": "VIDGEN — AI Music Video Generator",
+  "short_name": "VIDGEN",
+  "description": "AI multi-vendor music video generator",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#070811",
+  "theme_color": "#070811",
+  "icons": [
+    {"src":"/icons/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
+  ]
+}
