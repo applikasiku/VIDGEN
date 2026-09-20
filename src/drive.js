@@ -46,9 +46,9 @@ export async function googleAuthCallback(request, env) {
     const profileRes = await fetch("https://openidconnect.googleapis.com/v1/userinfo", { headers: { authorization: `Bearer ${token.access_token}` } });
     if (profileRes.ok) profile = await profileRes.json();
   } catch {}
-  await env.DB.prepare("UPDATE users SET email=?, name=?, picture=?, updated_at=CURRENT_TIMESTAMP WHERE id=?")
+  await env.DATABASE_V2.prepare("UPDATE users SET email=?, name=?, picture=?, updated_at=CURRENT_TIMESTAMP WHERE id=?")
     .bind(profile.email || null, profile.name || null, profile.picture || null, userId).run();
-  await env.DB.prepare(`
+  await env.DATABASE_V2.prepare(`
     INSERT INTO oauth_tokens (user_id, provider, access_token, refresh_token, expires_at, scope, token_type)
     VALUES (?, 'google', ?, ?, ?, ?, ?)
     ON CONFLICT(user_id,provider) DO UPDATE SET access_token=excluded.access_token,
@@ -60,7 +60,7 @@ export async function googleAuthCallback(request, env) {
 }
 
 async function getToken(env, userId) {
-  const row = await env.DB.prepare("SELECT * FROM oauth_tokens WHERE user_id=? AND provider='google'").bind(userId).first();
+  const row = await env.DATABASE_V2.prepare("SELECT * FROM oauth_tokens WHERE user_id=? AND provider='google'").bind(userId).first();
   if (!row) throw new Error("Google Drive belum terhubung.");
   if (!row.expires_at || Number(row.expires_at) > Date.now() + 60000) return row.access_token;
   if (!row.refresh_token) throw new Error("Token Google kedaluwarsa. Hubungkan ulang Google Drive.");
@@ -76,13 +76,13 @@ async function getToken(env, userId) {
   });
   if (!res.ok) throw new Error(`Refresh Google token gagal: ${await res.text()}`);
   const data = await res.json();
-  await env.DB.prepare("UPDATE oauth_tokens SET access_token=?, expires_at=?, updated_at=CURRENT_TIMESTAMP WHERE user_id=? AND provider='google'")
+  await env.DATABASE_V2.prepare("UPDATE oauth_tokens SET access_token=?, expires_at=?, updated_at=CURRENT_TIMESTAMP WHERE user_id=? AND provider='google'")
     .bind(data.access_token, Date.now() + (data.expires_in || 3600) * 1000, userId).run();
   return data.access_token;
 }
 
 export async function driveStatus(env, userId) {
-  const row = await env.DB.prepare("SELECT u.email,u.name,u.picture,o.scope FROM users u LEFT JOIN oauth_tokens o ON o.user_id=u.id AND o.provider='google' WHERE u.id=?").bind(userId).first();
+  const row = await env.DATABASE_V2.prepare("SELECT u.email,u.name,u.picture,o.scope FROM users u LEFT JOIN oauth_tokens o ON o.user_id=u.id AND o.provider='google' WHERE u.id=?").bind(userId).first();
   return { connected: Boolean(row?.scope), email: row?.email || null, name: row?.name || null, picture: row?.picture || null };
 }
 
@@ -103,7 +103,7 @@ async function ensureFolder(accessToken, folderName) {
 }
 
 export async function archiveR2ToDrive(env, userId, { r2Key, fileName, mimeType = "video/mp4" }) {
-  const object = await env.MEDIA.get(r2Key);
+  const object = await env.STORAGE_V2.get(r2Key);
   if (!object) throw new Error("File R2 tidak ditemukan.");
   const accessToken = await getToken(env, userId);
   const folderId = await ensureFolder(accessToken, env.GOOGLE_DRIVE_FOLDER || "VIDGEN");
