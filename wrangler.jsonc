@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "vidgen",
+  "name": "vidgen-production",
   "main": "./src/index.js",
   "compatibility_date": "2026-09-21",
   "workers_dev": true,
@@ -27,7 +27,7 @@
   "vars": {
     "APP_NAME": "VIDGEN",
     "APP_ENV": "production",
-    "APP_VERSION": "1.0.1",
+    "APP_VERSION": "1.0.2",
     "GOOGLE_DRIVE_FOLDER": "VIDGEN",
     "LUMA_MODEL": "ray-2",
     "VEO_MODEL": "veo-3.1-generate-001",
