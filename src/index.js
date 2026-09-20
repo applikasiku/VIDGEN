@@ -50,12 +50,39 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (!url.pathname.startsWith("/api/") && !url.pathname.startsWith("/oauth/")) return env.ASSETS.fetch(request);
+
+    // Health check must not depend on D1/session state so Cloudflare can verify the Worker
+    // immediately after the first deployment, before migrations are applied.
+    if (url.pathname === "/api/health") {
+      return json({
+        ok: true,
+        app: env.APP_NAME || "VIDGEN",
+        version: env.APP_VERSION || "1.0.1",
+        runtime: "cloudflare-workers",
+        time: new Date().toISOString()
+      });
+    }
+
+    // Provider callbacks are server-to-server and do not need a browser session.
+    if (url.pathname === "/api/webhooks/luma" && request.method === "POST") {
+      try {
+        const b = await bodyJson(request);
+        const providerId = b.id || b.generation_id;
+        if (providerId) {
+          const state = b.state || b.status || "updated";
+          const progress = state === "completed" ? 100 : state === "failed" ? 0 : 50;
+          await env.DB.prepare("UPDATE jobs SET status=?,progress=?,result_json=?,updated_at=CURRENT_TIMESTAMP WHERE provider_job_id=?")
+            .bind(state, progress, JSON.stringify(b), providerId).run();
+        }
+        return json({ ok: true });
+      } catch (error) {
+        return json({ error: String(error.message || error) }, 500);
+      }
+    }
+
     const session = await ensureSession(request, env);
 
     try {
-      if (url.pathname === "/api/health") {
-        return withSession(json({ ok: true, app: "VIDGEN", version: "1.0.0", time: new Date().toISOString() }), session);
-      }
       if (url.pathname === "/api/bootstrap") {
         const drive = await driveStatus(env, session.id);
         const providers = providerCatalog(env);
@@ -130,17 +157,6 @@ export default {
         const b = await bodyJson(request);
         const result = await archiveR2ToDrive(env, session.id, { r2Key: safeText(b.r2Key, 500), fileName: safeText(b.fileName || "VIDGEN-output.mp4", 180), mimeType: safeText(b.mimeType || "video/mp4", 80) });
         return withSession(json({ ok: true, drive: result }), session);
-      }
-      if (url.pathname === "/api/webhooks/luma" && request.method === "POST") {
-        const b = await bodyJson(request);
-        const providerId = b.id || b.generation_id;
-        if (providerId) {
-          const state = b.state || b.status || "updated";
-          const progress = state === "completed" ? 100 : state === "failed" ? 0 : 50;
-          await env.DB.prepare("UPDATE jobs SET status=?,progress=?,result_json=?,updated_at=CURRENT_TIMESTAMP WHERE provider_job_id=?")
-            .bind(state, progress, JSON.stringify(b), providerId).run();
-        }
-        return json({ ok: true });
       }
       return withSession(json({ error: "Not found" }, 404), session);
     } catch (error) {
