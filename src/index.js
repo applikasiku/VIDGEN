@@ -1,9 +1,10 @@
 import { json, uid, ensureSession, safeText, sessionCookie } from "./utils.js";
-import { providerCatalog, pickProvider } from "./providers/router.js";
+import { providerCatalog, providerCandidates } from "./providers/router.js";
 import { createLumaVideo } from "./providers/luma.js";
 import { createSeedanceVideo } from "./providers/seedance.js";
 import { createRunwayVideo } from "./providers/runway.js";
 import { createVeoVideo } from "./providers/veo.js";
+import { pollProvider, normalizeProviderPayload } from "./providers/status.js";
 import { googleAuthStart, googleAuthCallback, driveStatus, archiveR2ToDrive } from "./drive.js";
 
 let schemaReady = false;
@@ -80,6 +81,7 @@ async function ensureSchema(env) {
       CREATE TABLE IF NOT EXISTS jobs (
         id TEXT PRIMARY KEY,
         project_id TEXT NOT NULL,
+        scene_id TEXT,
         job_type TEXT NOT NULL,
         provider TEXT,
         provider_job_id TEXT,
@@ -90,7 +92,8 @@ async function ensureSchema(env) {
         result_json TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        FOREIGN KEY (scene_id) REFERENCES scenes(id) ON DELETE CASCADE
       );
 
       CREATE TABLE IF NOT EXISTS assets (
@@ -115,13 +118,15 @@ async function ensureSchema(env) {
         FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE CASCADE
       );
 
-      CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id, created_at DESC);
+      CREATE TABLE IF NOT EXISTS provider_media_tokens (\n        token TEXT PRIMARY KEY,\n        user_id TEXT NOT NULL,\n        r2_key TEXT NOT NULL,\n        mime_type TEXT NOT NULL,\n        expires_at TEXT NOT NULL,\n        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,\n        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE\n      );\n\n      CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id, created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_scenes_project ON scenes(project_id, scene_index);
       CREATE INDEX IF NOT EXISTS idx_jobs_project ON jobs(project_id, created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_assets_user ON assets(user_id, created_at DESC);
-      CREATE INDEX IF NOT EXISTS idx_project_assets_project ON project_assets(project_id, role);
+      CREATE INDEX IF NOT EXISTS idx_project_assets_project ON project_assets(project_id, role);\n      CREATE INDEX IF NOT EXISTS idx_provider_media_expiry ON provider_media_tokens(expires_at);
     `;
     await env.DATABASE_V2.batch(schema.split(";").map(sql => sql.trim()).filter(Boolean).map(sql => env.DATABASE_V2.prepare(sql)));
+    try { await env.DATABASE_V2.prepare("ALTER TABLE jobs ADD COLUMN scene_id TEXT").run(); } catch {}
+    await env.DATABASE_V2.prepare("DELETE FROM provider_media_tokens WHERE expires_at <= CURRENT_TIMESTAMP").run();
     schemaReady = true;
   }
 }
@@ -195,7 +200,8 @@ async function createProviderTask(env, provider, scene, request) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (!url.pathname.startsWith("/api/") && !url.pathname.startsWith("/oauth/")) return env.ASSETS.fetch(request);
+    const isProviderMedia = url.pathname.startsWith("/provider-media/");
+    if (!url.pathname.startsWith("/api/") && !url.pathname.startsWith("/oauth/") && !isProviderMedia) return env.ASSETS.fetch(request);
 
     // Health check must not depend on D1/session state so Cloudflare can verify the Worker
     // immediately after the first deployment, before migrations are applied.
@@ -203,7 +209,7 @@ export default {
       return json({
         ok: true,
         app: env.APP_NAME || "VIDGEN",
-        version: env.APP_VERSION || "1.3.0",
+        version: env.APP_VERSION || "1.4.0",
         runtime: "cloudflare-workers",
         time: new Date().toISOString()
       });
