@@ -488,3 +488,13 @@ textarea{min-height:96px;padding-top:14px;padding-bottom:14px}
   .asset-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media(max-width:430px){.asset-grid{grid-template-columns:1fr}}
+
+/* VIDGEN GENRE SELECT + BULK UPLOAD */
+.genre-custom-wrap{display:none}
+.genre-custom-wrap.show{display:block}
+.asset-upload{position:relative}
+.asset-upload input:disabled+span{opacity:.55}
+.asset-upload input:disabled~small{opacity:.55}
+@media(min-width:761px){
+  .genre-custom-wrap.show{display:block}
+}
