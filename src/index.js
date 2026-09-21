@@ -5,7 +5,7 @@ import { createSeedanceVideo } from "./providers/seedance.js";
 import { createRunwayVideo } from "./providers/runway.js";
 import { createGoogleVideo } from "./providers/google.js";
 import { pollProvider, normalizeProviderPayload } from "./providers/status.js";
-import { googleAuthStart, googleAuthCallback, driveStatus, archiveR2ToDrive } from "./drive.js";
+import { googleAuthStart, googleAuthCallback, driveStatus, disconnectDrive, testDrive, archiveR2ToDrive, archiveSceneToDrive } from "./drive.js";
 
 let schemaReady = false;
 
@@ -73,6 +73,8 @@ async function ensureSchema(env) {
         vendor TEXT DEFAULT 'auto',
         provider_job_id TEXT,
         output_r2_key TEXT,
+        drive_file_id TEXT,
+        drive_web_view_link TEXT,
         status TEXT DEFAULT 'draft',
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -139,6 +141,8 @@ async function ensureSchema(env) {
     await env.DATABASE_V2.batch(schema.split(";").map(sql => sql.trim()).filter(Boolean).map(sql => env.DATABASE_V2.prepare(sql)));
     try { await env.DATABASE_V2.prepare("ALTER TABLE jobs ADD COLUMN scene_id TEXT").run(); } catch {}
     try { await env.DATABASE_V2.prepare("ALTER TABLE projects ADD COLUMN google_model TEXT DEFAULT 'veo-3.1-generate-preview'").run(); } catch {}
+    try { await env.DATABASE_V2.prepare("ALTER TABLE scenes ADD COLUMN drive_file_id TEXT").run(); } catch {}
+    try { await env.DATABASE_V2.prepare("ALTER TABLE scenes ADD COLUMN drive_web_view_link TEXT").run(); } catch {}
     await env.DATABASE_V2.prepare("DELETE FROM provider_media_tokens WHERE expires_at <= CURRENT_TIMESTAMP").run();
     schemaReady = true;
   }
@@ -472,7 +476,7 @@ async function syncProjectJobs(env, projectId, userId, request) {
   }
 
   const scenes = await env.DATABASE_V2.prepare(
-    "SELECT id,scene_index,title,prompt,start_seconds,duration_seconds,vendor,provider_job_id,output_r2_key,status FROM scenes WHERE project_id=? ORDER BY scene_index"
+    "SELECT id,scene_index,title,prompt,start_seconds,duration_seconds,vendor,provider_job_id,output_r2_key,drive_file_id,drive_web_view_link,status FROM scenes WHERE project_id=? ORDER BY scene_index"
   ).bind(projectId).all();
   const sceneRows = scenes.results || [];
   const jobs = await env.DATABASE_V2.prepare(
@@ -550,6 +554,10 @@ export default {
         version: env.APP_VERSION || "1.4.4",
         checks,
         providers,
+        googleDrive: {
+          configured: Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.SESSION_SECRET),
+          folderName: env.GOOGLE_DRIVE_FOLDER || "VIDGEN"
+        },
         databaseError
       });
     }
@@ -831,6 +839,9 @@ export default {
         await env.STORAGE_V2.put(key, request.body, { httpMetadata: { contentType } });
         return withSession(json({ ok: true, key }), session);
       }
+      if (url.pathname === "/api/drive/status") {
+        return withSession(json(await driveStatus(env, session.id)), session);
+      }
       if (url.pathname === "/api/drive/connect") {
         const authUrl = await googleAuthStart(request, env, session.id);
         return withSession(json({ authUrl }), session);
@@ -841,9 +852,30 @@ export default {
         headers.append("set-cookie", sessionCookie(userId));
         return new Response(null, { status: 302, headers });
       }
+      if (url.pathname === "/api/drive/test" && request.method === "POST") {
+        const result = await testDrive(env, session.id);
+        return withSession(json({ ok: true, ...result }), session);
+      }
+      if (url.pathname === "/api/drive/disconnect" && request.method === "POST") {
+        await disconnectDrive(env, session.id);
+        return withSession(json({ ok: true }), session);
+      }
+      if (url.pathname === "/api/drive/archive-scene" && request.method === "POST") {
+        const b = await bodyJson(request);
+        const result = await archiveSceneToDrive(env, session.id, {
+          projectId: safeText(b.projectId, 120),
+          sceneId: safeText(b.sceneId, 120)
+        });
+        return withSession(json({ ok: true, drive: result }), session);
+      }
       if (url.pathname === "/api/drive/archive" && request.method === "POST") {
         const b = await bodyJson(request);
-        const result = await archiveR2ToDrive(env, session.id, { r2Key: safeText(b.r2Key, 500), fileName: safeText(b.fileName || "VIDGEN-output.mp4", 180), mimeType: safeText(b.mimeType || "video/mp4", 80) });
+        const result = await archiveR2ToDrive(env, session.id, {
+          r2Key: safeText(b.r2Key, 500),
+          fileName: safeText(b.fileName || "VIDGEN-output.mp4", 180),
+          mimeType: safeText(b.mimeType || "video/mp4", 80),
+          projectFolder: safeText(b.projectFolder || "", 100) || null
+        });
         return withSession(json({ ok: true, drive: result }), session);
       }
       return withSession(json({ error: "Not found" }, 404), session);
