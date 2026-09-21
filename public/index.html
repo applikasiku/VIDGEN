@@ -33,11 +33,11 @@
       </nav>
       <div class="side-card">
         <div class="side-glow"></div>
-        <small>VIDGEN V1.1</small>
+        <small>VIDGEN V1.2</small>
         <b>Satu lagu.<br/>Banyak imajinasi.</b>
         <p>Storyboard, multi-vendor routing, render queue & arsip Drive.</p>
       </div>
-      <div class="version">v1.1.0 • PWA</div>
+      <div class="version">v1.2.0 • PWA</div>
     </aside>
 
     <main class="main">
@@ -53,7 +53,7 @@
       </header>
 
       <section class="notice" id="notice">
-        <div><b>VIDGEN V1.1</b><span>Mode demo aktif sampai API vendor dikonfigurasi di Cloudflare Secrets.</span></div>
+        <div><b>VIDGEN V1.2</b><span>Mode demo aktif sampai API vendor dikonfigurasi di Cloudflare Secrets.</span></div>
         <button id="dismissNotice">×</button>
       </section>
 
@@ -95,11 +95,16 @@
                 <label><span>Genre / Nuansa</span><input id="genreInput" placeholder="Ska rocksteady, pop, gothic…" /></label>
               </div>
               <label class="field"><span>Konsep video</span><textarea id="conceptInput" rows="3" placeholder="Contoh: penyanyi berjalan di kota malam, neon, emosional, potongan performance dan storytelling…"></textarea></label>
+              <div class="form-grid compact advanced-storyboard">
+                <label><span>Mood Storyboard</span><select id="moodInput"><option value="dynamic">Dynamic</option><option value="emotional">Emotional</option><option value="dark dramatic">Dark Dramatic</option><option value="warm uplifting">Warm Uplifting</option><option value="dreamy atmospheric">Dreamy</option></select></label>
+                <label><span>Gaya Kamera</span><select id="cameraInput"><option value="mixed cinematic">Mixed Cinematic</option><option value="close-up portrait">Close-up</option><option value="tracking shot">Tracking</option><option value="wide establishing shot">Wide</option><option value="slow orbit">Orbit</option></select></label>
+              </div>
               <div class="analysis-options">
                 <label><input type="checkbox" id="beatToggle" checked /> <span>Sinkron beat</span></label>
                 <label><input type="checkbox" id="lyricToggle" checked /> <span>Sinkron lirik</span></label>
                 <label><input type="checkbox" id="consistencyToggle" checked /> <span>Jaga konsistensi karakter</span></label>
               </div>
+              <div class="reference-strip" id="referenceStrip"><div><small>REFERENCE IMAGE</small><b id="referenceName">Belum dipilih</b></div><button class="secondary" id="pickReference">Pilih dari Aset</button><button class="text-btn" id="clearReference">Hapus</button></div>
               <div class="action-row"><button class="primary" id="storyboardBtn">✦ Buat Storyboard AI</button><button class="secondary" id="addSceneBtn">＋ Scene Manual</button></div>
               <div class="scene-list" id="sceneList"><div class="empty">Storyboard belum dibuat.</div></div>
             </article>
@@ -147,13 +152,22 @@
         </article>
 
         <div class="bottom-grid">
-          <article class="card render-card"><div class="section-title"><div><small>RENDER QUEUE</small><h2>Status Generasi</h2></div><span class="pill" id="jobCount">0 job</span></div><div id="jobList"><div class="empty">Belum ada job.</div></div></article>
+          <article class="card render-card"><div class="section-title"><div><small>RENDER QUEUE</small><h2>Status Generasi</h2></div><div class="queue-actions"><span class="pill" id="jobCount">0 job</span><button class="text-btn" id="refreshJobs">Refresh</button></div></div><div class="queue-summary" id="queueSummary">Belum ada render aktif.</div><div id="jobList"><div class="empty">Belum ada job.</div></div></article>
           <article class="card drive-card"><div class="drive-head"><div class="gdrive-logo">G</div><div><small>GOOGLE DRIVE</small><h2 id="driveTitle">Belum terhubung</h2></div></div><p id="driveText">Hubungkan Google Drive untuk menyimpan video final, storyboard dan thumbnail.</p><button class="secondary full" id="connectDrive">Hubungkan Google Drive</button><div class="drive-options"><span>✓ Scope <code>drive.file</code></span><span>✓ Folder /VIDGEN</span></div></article>
         </div>
       </section>
 
       <section class="view" id="view-projects"><article class="card page-card"><div class="section-title"><div><small>LIBRARY</small><h2>Proyek VIDGEN</h2></div></div><div class="project-grid" id="projectGrid"><div class="empty">Belum ada proyek tersimpan.</div></div></article></section>
-      <section class="view" id="view-assets"><article class="card page-card"><div class="section-title"><div><small>MEDIA LIBRARY</small><h2>Aset Media</h2></div></div><div class="placeholder"><b>Audio • Foto karakter • Reference image • Video scene</b><p>V1 sudah menyiapkan R2 sebagai object storage. Media manager lengkap dapat dikembangkan pada V1.1.</p></div></article></section>
+      <section class="view" id="view-assets">
+        <article class="card page-card">
+          <div class="section-title"><div><small>MEDIA LIBRARY • R2</small><h2>Reference Image</h2></div><span class="pill">JPG • PNG • WEBP • maks 10 MB</span></div>
+          <div class="asset-toolbar">
+            <label class="asset-upload"><input type="file" id="assetInput" accept="image/jpeg,image/png,image/webp" hidden /><span>＋ Upload Reference</span><small>Disimpan privat di Cloudflare R2.</small></label>
+            <div class="asset-status"><b id="assetCount">0 aset</b><small>Pilih satu aset sebagai panduan visual storyboard.</small></div>
+          </div>
+          <div class="asset-grid" id="assetGrid"><div class="empty">Belum ada reference image.</div></div>
+        </article>
+      </section>
       <section class="view" id="view-vendors"><article class="card page-card"><div class="section-title"><div><small>MULTI-VENDOR</small><h2>Status Provider AI</h2></div></div><div class="provider-grid" id="providerGrid"></div></article></section>
       <section class="view" id="view-storage"><article class="card page-card"><div class="section-title"><div><small>STORAGE</small><h2>R2 + Google Drive</h2></div></div><div class="storage-flow"><div><b>1</b><span>AI Vendor</span></div><i>→</i><div><b>2</b><span>Cloudflare R2</span></div><i>→</i><div><b>3</b><span>Composer</span></div><i>→</i><div><b>4</b><span>Google Drive</span></div></div><p class="muted">R2 dipakai untuk file kerja/render sementara. Google Drive menjadi arsip output permanen pengguna.</p></article></section>
       <section class="view" id="view-templates">
