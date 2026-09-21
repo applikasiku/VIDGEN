@@ -195,7 +195,28 @@
 
         <div class="bottom-grid">
           <article class="card render-card"><div class="section-title"><div><small>RENDER QUEUE</small><h2>Status Generasi</h2></div><div class="queue-actions"><span class="pill" id="jobCount">0 job</span><button class="text-btn" id="refreshJobs"><i class="fa-solid fa-rotate"></i> Refresh</button></div></div><div class="queue-summary" id="queueSummary">Belum ada render aktif.</div><div id="jobList"><div class="empty">Belum ada job.</div></div></article>
-          <article class="card drive-card"><div class="drive-head"><div class="gdrive-logo"><i class="fa-brands fa-google-drive"></i></div><div><small>GOOGLE DRIVE</small><h2 id="driveTitle">Belum terhubung</h2></div></div><p id="driveText">Hubungkan Google Drive untuk menyimpan video final, storyboard dan thumbnail.</p><button class="secondary full" id="connectDrive"><i class="fa-brands fa-google-drive"></i> Hubungkan Google Drive</button><div class="drive-options"><span><i class="fa-solid fa-check"></i> Scope <code>drive.file</code></span><span><i class="fa-solid fa-check"></i> Folder /VIDGEN</span></div></article>
+          <article class="card drive-card">
+            <div class="drive-head">
+              <div class="gdrive-logo"><i class="fa-brands fa-google-drive"></i></div>
+              <div><small>GOOGLE DRIVE</small><h2 id="driveTitle">Belum terhubung</h2></div>
+            </div>
+            <p id="driveText">Hubungkan Google Drive untuk menyimpan hasil render ke folder VIDGEN.</p>
+            <div class="drive-status-row">
+              <span class="status" id="driveOauthStatus">OAuth belum dicek</span>
+              <span class="pill" id="driveArchiveCount">0 scene tersimpan</span>
+            </div>
+            <div class="drive-actions">
+              <button class="secondary full" id="connectDrive"><i class="fa-brands fa-google-drive"></i> Hubungkan Google Drive</button>
+              <button class="secondary" id="testDrive" hidden><i class="fa-solid fa-vial-circle-check"></i> Test</button>
+              <button class="primary" id="archiveDrive" hidden><i class="fa-solid fa-cloud-arrow-up"></i> Arsip Scene</button>
+              <button class="text-btn danger-text" id="disconnectDrive" hidden><i class="fa-solid fa-link-slash"></i> Putuskan</button>
+            </div>
+            <small class="drive-progress" id="driveProgress">Menunggu koneksi Google Drive.</small>
+            <div class="drive-options">
+              <span><i class="fa-solid fa-check"></i> Scope <code>drive.file</code></span>
+              <span><i class="fa-solid fa-check"></i> Folder /VIDGEN/&lt;Nama Project&gt;</span>
+            </div>
+          </article>
         </div>
       </section>
 
@@ -211,7 +232,7 @@
         </article>
       </section>
       <section class="view" id="view-vendors"><article class="card page-card"><div class="section-title"><div><small>MULTI-VENDOR</small><h2>Status Provider AI</h2></div></div><div class="provider-grid" id="providerGrid"></div></article></section>
-      <section class="view" id="view-storage"><article class="card page-card"><div class="section-title"><div><small>STORAGE</small><h2>R2 + Google Drive</h2></div></div><div class="storage-flow"><div><b>1</b><span>AI Vendor</span></div><i class="fa-solid fa-arrow-right"></i><div><b>2</b><span>Cloudflare R2</span></div><i class="fa-solid fa-arrow-right"></i><div><b>3</b><span>Composer</span></div><i class="fa-solid fa-arrow-right"></i><div><b>4</b><span>Google Drive</span></div></div><p class="muted">R2 dipakai untuk file kerja/render sementara. Google Drive menjadi arsip output permanen pengguna.</p></article></section>
+      <section class="view" id="view-storage"><article class="card page-card"><div class="section-title"><div><small>STORAGE</small><h2>R2 + Google Drive</h2></div><span class="pill">OAuth 2.0 • drive.file</span></div><div class="storage-flow"><div><b>1</b><span>AI Vendor</span></div><i class="fa-solid fa-arrow-right"></i><div><b>2</b><span>Cloudflare R2</span></div><i class="fa-solid fa-arrow-right"></i><div><b>3</b><span>Scene Output</span></div><i class="fa-solid fa-arrow-right"></i><div><b>4</b><span>Google Drive</span></div></div><p class="muted">Output scene tetap disimpan di R2. Setelah Google Drive terhubung, VIDGEN membuat folder <b>VIDGEN</b> dan subfolder per proyek untuk arsip video.</p><div class="storage-note"><i class="fa-solid fa-shield-halved"></i><div><b>Akses terbatas</b><small>VIDGEN memakai scope <code>drive.file</code>, bukan akses penuh seluruh Drive.</small></div></div></article></section>
       <section class="view" id="view-templates">
         <article class="card page-card">
           <div class="section-title"><div><small>QUICK START</small><h2>Template Video</h2></div><span class="pill">Preset siap pakai</span></div>
