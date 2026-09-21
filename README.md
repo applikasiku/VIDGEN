@@ -1,4 +1,4 @@
-# VIDGEN V1.3
+# VIDGEN V1.4
 
 VIDGEN adalah **AI Multi-Vendor Music Video Generator** berbasis Cloudflare Workers + Static Assets.
 
@@ -94,10 +94,8 @@ npx wrangler secret put GOOGLE_CLIENT_ID
 npx wrangler secret put GOOGLE_CLIENT_SECRET
 
 npx wrangler secret put SEEDANCE_API_KEY
-npx wrangler secret put SEEDANCE_API_BASE
 
 npx wrangler secret put RUNWAY_API_KEY
-npx wrangler secret put RUNWAY_API_BASE
 
 npx wrangler secret put LUMA_API_KEY
 
@@ -106,6 +104,17 @@ npx wrangler secret put VEO_PROJECT_ID
 ```
 
 Provider tanpa credential akan tetap tampil sebagai **demo/fallback mode**.
+
+## Provider runtime variables
+
+Base URL/model non-secret dikonfigurasi di `wrangler.jsonc`:
+
+- `SEEDANCE_API_BASE` → BytePlus LAS operator endpoint.
+- `SEEDANCE_MODEL` → Seedance 2.x model ID.
+- `RUNWAY_API_BASE` → `https://api.dev.runwayml.com/v1`.
+- `RUNWAY_MODEL` → `gen4.5`.
+- `LUMA_MODEL` → `ray-2`.
+- `VEO_MODEL` / `VEO_LOCATION` → Vertex AI Veo.
 
 ## Google Drive
 
@@ -213,3 +222,22 @@ VIDGEN 1.3.0 mengubah editor menjadi workspace project yang bisa dilanjutkan:
 - Penghapusan project juga membersihkan audio project dari R2; scene/job/reference link dibersihkan melalui foreign-key cascade.
 - Memperbaiki bug selector genre pada Template preset.
 - Versi frontend/backend/PWA disinkronkan ke 1.3.0.
+
+
+## Rilis 1.4.0
+
+VIDGEN 1.4.0 memperkenalkan **Real Render Pipeline**:
+
+- Adapter provider diperbarui untuk task async Seedance 2.x, Runway Gen-4.5, Luma Ray 2, dan Vertex AI Veo.
+- Job scene sekarang menyimpan `scene_id` sehingga status render dapat dipetakan ke scene secara presisi.
+- Worker mem-poll task provider, menormalisasi status queued/running/completed/failed, dan memperbarui D1.
+- Output video provider yang selesai disalin ke Cloudflare R2 agar link sementara provider tidak menjadi sumber permanen.
+- Veo dapat menyimpan output base64 langsung ke R2; Runway/Luma/Seedance menggunakan output URL provider lalu diarsipkan ke R2.
+- Reference image diberikan ke provider sebagai temporary signed-by-token media URL; Veo juga menerima bytes base64 untuk JPEG/PNG yang sesuai.
+- Fallback vendor bekerja saat submit gagal dan dapat melanjutkan otomatis ke provider lain ketika task async berakhir gagal.
+- Scene Inspector menyediakan preview output R2, status scene, edit prompt, pilihan vendor, fallback, dan Regenerate Scene.
+- Render Queue melakukan polling dengan interval berjitter dan berhenti otomatis saat tidak ada job aktif.
+- Endpoint output scene aman tersedia melalui sesi pengguna.
+- PWA, frontend, backend, dan konfigurasi Worker disinkronkan ke 1.4.0.
+
+Catatan produksi: credential provider tetap harus dikonfigurasi di Cloudflare Secrets. Provider yang belum memiliki credential akan tetap menggunakan demo mode dan tidak menghasilkan file video nyata.
