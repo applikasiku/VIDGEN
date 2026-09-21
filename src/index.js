@@ -448,6 +448,54 @@ export default {
       });
     }
 
+    // Provider/config diagnostics must not depend on D1 schema/session state.
+    if (url.pathname === "/api/provider-status") {
+      const providers = providerCatalog(env).map(p => ({
+        id: p.id,
+        name: p.name,
+        model: p.model,
+        configured: Boolean(p.configured),
+        strengths: p.strengths || []
+      }));
+      return json({
+        ok: true,
+        app: env.APP_NAME || "VIDGEN",
+        version: env.APP_VERSION || "1.4.0",
+        providers
+      });
+    }
+
+    if (url.pathname === "/api/diagnostics") {
+      const checks = {
+        worker: true,
+        d1Binding: Boolean(env.DATABASE_V2),
+        r2Binding: Boolean(env.STORAGE_V2),
+        d1: "not-checked",
+        r2: Boolean(env.STORAGE_V2) ? "bound" : "missing"
+      };
+      let databaseError = null;
+      if (env.DATABASE_V2) {
+        try {
+          await env.DATABASE_V2.prepare("SELECT 1 AS ok").first();
+          checks.d1 = "ok";
+        } catch (error) {
+          checks.d1 = "error";
+          databaseError = String(error.message || error);
+        }
+      } else {
+        checks.d1 = "missing";
+      }
+      const providers = providerCatalog(env).map(p => ({ id: p.id, configured: Boolean(p.configured), model: p.model }));
+      return json({
+        ok: checks.worker && checks.d1Binding && checks.r2Binding && checks.d1 === "ok",
+        app: env.APP_NAME || "VIDGEN",
+        version: env.APP_VERSION || "1.4.0",
+        checks,
+        providers,
+        databaseError
+      });
+    }
+
     let session;
     try {
       await ensureSchema(env);
