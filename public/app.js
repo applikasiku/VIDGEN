@@ -3,6 +3,9 @@ const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const toast=m=>{const e=$('#toast');e.textContent=m;e.classList.add('show');clearTimeout(window.__toast);window.__toast=setTimeout(()=>e.classList.remove('show'),2300)};
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const fmt=n=>{n=Math.max(0,Math.round(n||0));return `${String(Math.floor(n/60)).padStart(2,'0')}:${String(n%60).padStart(2,'0')}`};
+function getGenreValue(){const s=$('#genreSelect'),c=$('#genreCustom');if(!s)return '';return s.value==='Lainnya'?(c?.value||'').trim():s.value}
+function setGenreValue(value=''){const s=$('#genreSelect'),c=$('#genreCustom');if(!s)return;const options=[...s.options].map(o=>o.value);if(options.includes(value)){s.value=value;if(c)c.value=''}else{s.value='Lainnya';if(c)c.value=value}syncGenreField()}
+function syncGenreField(){const s=$('#genreSelect'),w=$('#genreCustomWrap');if(!s||!w)return;w.classList.toggle('show',s.value==='Lainnya')}
 async function api(path,opt={}){const r=await fetch(path,{...opt,headers:{'content-type':'application/json',...(opt.headers||{})}});if(!r.ok)throw new Error((await r.json().catch(()=>({}))).error||`HTTP ${r.status}`);return r.json()}
 function buildWave(){const w=$('#wave');w.innerHTML='';for(let i=0;i<90;i++){const b=document.createElement('i');b.style.height=`${5+Math.random()*20}px`;w.appendChild(b)}}buildWave();
 function setStep(n){$$('.step').forEach((e,i)=>e.classList.toggle('active',i<n))}
@@ -28,9 +31,9 @@ function renderAssets(){
   $('[data-use-asset]').forEach(b=>b.onclick=()=>{state.referenceAsset=state.assets.find(a=>a.id===b.dataset.useAsset)||null;renderAssets();toast('Reference image dipilih.')});
   $('[data-delete-asset]').forEach(b=>b.onclick=()=>deleteAsset(b.dataset.deleteAsset));
 }
-function localStoryboard(){const count=Math.max(6,Math.min(24,state.audioDuration?Math.ceil(state.audioDuration/state.duration):8));const labels=['Intro','Verse 1','Build','Chorus','Verse 2','Transition','Bridge','Final Chorus','Outro'];const shots=['wide establishing shot','medium performance shot','close-up portrait','tracking shot','low angle hero shot','slow orbit'];const genre=$('#genreInput').value||'music video';const concept=$('#conceptInput').value||'cinematic performance and emotional storytelling';const mood=$('#moodInput')?.value||'dynamic';const camera=$('#cameraInput')?.value||'mixed cinematic';return Array.from({length:count},(_,i)=>{const title=labels[Math.min(labels.length-1,Math.floor(i*labels.length/count))];const shot=camera==='mixed cinematic'?shots[i%shots.length]:camera;const ref=state.referenceAsset?` Use selected reference image "${state.referenceAsset.name}" as identity/style guidance.`:'';return{id:`local_${Date.now()}_${i}`,index:i,title,start:i*state.duration,duration:state.duration,shot,motion:'cinematic camera movement',lighting:'cinematic lighting',prompt:`${concept}. ${title}. ${genre}. ${state.style} music video, ${mood} mood, ${shot}, coherent character identity, consistent wardrobe, cinematic lighting, intentional camera movement.${ref} no text or watermark.`}})}
+function localStoryboard(){const count=Math.max(6,Math.min(24,state.audioDuration?Math.ceil(state.audioDuration/state.duration):8));const labels=['Intro','Verse 1','Build','Chorus','Verse 2','Transition','Bridge','Final Chorus','Outro'];const shots=['wide establishing shot','medium performance shot','close-up portrait','tracking shot','low angle hero shot','slow orbit'];const genre=getGenreValue()||'music video';const concept=$('#conceptInput').value||'cinematic performance and emotional storytelling';const mood=$('#moodInput')?.value||'dynamic';const camera=$('#cameraInput')?.value||'mixed cinematic';return Array.from({length:count},(_,i)=>{const title=labels[Math.min(labels.length-1,Math.floor(i*labels.length/count))];const shot=camera==='mixed cinematic'?shots[i%shots.length]:camera;const ref=state.referenceAsset?` Use selected reference image "${state.referenceAsset.name}" as identity/style guidance.`:'';return{id:`local_${Date.now()}_${i}`,index:i,title,start:i*state.duration,duration:state.duration,shot,motion:'cinematic camera movement',lighting:'cinematic lighting',prompt:`${concept}. ${title}. ${genre}. ${state.style} music video, ${mood} mood, ${shot}, coherent character identity, consistent wardrobe, cinematic lighting, intentional camera movement.${ref} no text or watermark.`}})}
 async function makeStoryboard(){
-  const payload={genre:$('#genreInput').value,concept:$('#conceptInput').value,style:state.style,mood:$('#moodInput')?.value||'dynamic',camera:$('#cameraInput')?.value||'mixed cinematic',beatSync:$('#beatToggle').checked,lyricSync:$('#lyricToggle').checked,consistency:$('#consistencyToggle').checked,referenceName:state.referenceAsset?.name||'',sceneDuration:state.duration,sceneCount:state.audioDuration?Math.ceil(state.audioDuration/state.duration):8};
+  const payload={genre:getGenreValue(),concept:$('#conceptInput').value,style:state.style,mood:$('#moodInput')?.value||'dynamic',camera:$('#cameraInput')?.value||'mixed cinematic',beatSync:$('#beatToggle').checked,lyricSync:$('#lyricToggle').checked,consistency:$('#consistencyToggle').checked,referenceName:state.referenceAsset?.name||'',sceneDuration:state.duration,sceneCount:state.audioDuration?Math.ceil(state.audioDuration/state.duration):8};
   try{state.scenes=state.api?(await api('/api/storyboard',{method:'POST',body:JSON.stringify(payload)})).scenes:localStoryboard()}catch(e){toast(e.message);return}
   renderScenes();setStep(2);toast(`Storyboard dibuat: ${state.scenes.length} scene`)
 }
@@ -45,15 +48,39 @@ function closeModal(){$('#modal').classList.remove('show');state.editing=null}
 function renderJobs(){const box=$('#jobList'),summary=$('#queueSummary');if(!state.jobs.length){box.innerHTML='<div class="empty">Belum ada job.</div>';if(summary)summary.textContent='Belum ada render aktif.';updateStats();return}const failed=state.jobs.filter(j=>j.error||j.error_message||j.status==='failed').length;const done=state.jobs.filter(j=>['completed','succeeded','done'].includes(j.status)).length;const active=state.jobs.length-failed-done;if(summary)summary.textContent=`${active} aktif • ${done} selesai • ${failed} gagal`;box.innerHTML=state.jobs.map((j,i)=>{const status=j.error||j.error_message?'failed':j.demo?'demo':j.status||'submitted';const progress=Number.isFinite(Number(j.progress))?Number(j.progress):(status==='completed'?100:status==='failed'?5:status==='demo'?32:12);return `<div class="job"><div class="job-head"><b>Scene ${i+1} • ${esc(j.provider||'auto')}</b><span>${esc(status)}</span></div><div class="progress"><i style="width:${Math.max(3,Math.min(100,progress))}%"></i></div>${j.error_message||j.error?`<small class="job-error">${esc(j.error_message||j.error)}</small>`:''}</div>`}).join('');updateStats()}
 async function refreshJobs(silent=false){if(!state.api||!state.currentProjectId)return;if(!silent)$('#refreshJobs')?.setAttribute('disabled','');try{const r=await api('/api/jobs?projectId='+encodeURIComponent(state.currentProjectId));state.jobs=r.jobs||[];renderJobs()}catch(e){if(!silent)toast(e.message)}finally{if(!silent)$('#refreshJobs')?.removeAttribute('disabled')}}
 function startJobPolling(){clearInterval(state.jobTimer);if(!state.currentProjectId)return;state.jobTimer=setInterval(()=>refreshJobs(true),8000)}
-async function uploadAsset(file){if(!file)return;if(!['image/jpeg','image/png','image/webp'].includes(file.type))return toast('Gunakan JPG, PNG, atau WEBP.');if(file.size>10*1024*1024)return toast('Ukuran maksimal 10 MB.');const input=$('#assetInput');try{if(input)input.disabled=true;const r=await fetch('/api/assets/upload?name='+encodeURIComponent(file.name),{method:'POST',headers:{'content-type':file.type},body:file});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||`HTTP ${r.status}`);state.assets.unshift(data.asset);renderAssets();toast('Reference image tersimpan di R2.')}catch(e){toast(e.message)}finally{if(input){input.disabled=false;input.value=''}}}
+async function uploadAsset(file){
+  if(!file)throw new Error('File tidak ditemukan.');
+  if(!['image/jpeg','image/png','image/webp'].includes(file.type))throw new Error(`${file.name}: gunakan JPG, PNG, atau WEBP.`);
+  if(file.size>10*1024*1024)throw new Error(`${file.name}: ukuran maksimal 10 MB.`);
+  const r=await fetch('/api/assets/upload?name='+encodeURIComponent(file.name),{method:'POST',headers:{'content-type':file.type},body:file});
+  const data=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(data.error||`HTTP ${r.status}`);
+  state.assets.unshift(data.asset);
+  return data.asset;
+}
+async function uploadAssets(files){
+  const list=[...(files||[])];
+  if(!list.length)return;
+  const input=$('#assetInput');
+  let ok=0,failed=0;
+  if(input)input.disabled=true;
+  for(const file of list){
+    try{await uploadAsset(file);ok++}
+    catch(e){failed++;console.error(e);toast(e.message)}
+  }
+  renderAssets();
+  if(input){input.disabled=false;input.value=''}
+  if(failed===0)toast(`${ok} reference image berhasil diupload.`);
+  else toast(`${ok} berhasil • ${failed} gagal.`);
+}
 async function deleteAsset(id){const asset=state.assets.find(a=>a.id===id);if(!asset)return;try{const r=await fetch('/api/assets/'+encodeURIComponent(id),{method:'DELETE'});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||`HTTP ${r.status}`);state.assets=state.assets.filter(a=>a.id!==id);if(state.referenceAsset?.id===id)state.referenceAsset=null;renderAssets();toast('Aset dihapus.')}catch(e){toast(e.message)}}
 async function saveProject(){
-  const p={title:$('#projectTitle').value||'Videoclip Baru',genre:$('#genreInput').value,concept:$('#conceptInput').value,duration:state.audioDuration,style:state.style,aspectRatio:state.ratio,resolution:state.resolution,vendor:state.vendor,priority:state.priority,saveToDrive:$('#driveSaveToggle').checked,scenes:state.scenes};
+  const p={title:$('#projectTitle').value||'Videoclip Baru',genre:getGenreValue(),concept:$('#conceptInput').value,duration:state.audioDuration,style:state.style,aspectRatio:state.ratio,resolution:state.resolution,vendor:state.vendor,priority:state.priority,saveToDrive:$('#driveSaveToggle').checked,scenes:state.scenes};
   if(!state.api)return `demo_${Date.now()}`;const r=await api('/api/projects',{method:'POST',body:JSON.stringify(p)});state.projects.unshift({id:r.id,title:p.title,status:'draft',aspect_ratio:p.aspectRatio,resolution:p.resolution,created_at:new Date().toISOString()});renderProjects();if(typeof renderHistory==='function')renderHistory();updateStats();return r.id
 }
 async function generate(){if(!state.api)return toast('Server belum terhubung. Muat ulang untuk mencoba lagi.');if(!state.scenes.length)return toast('Buat storyboard terlebih dahulu.');$('#generateBtn').disabled=true;$('#generateBtn').textContent='Menyiapkan render…';try{state.currentProjectId=await saveProject();if(state.api){const r=await api('/api/generate',{method:'POST',body:JSON.stringify({projectId:state.currentProjectId})});state.jobs=r.jobs||[]}else{const route={quality:['seedance','veo','runway','luma'],balanced:['seedance','runway','veo','luma'],speed:['runway','luma','seedance','veo'],cost:['luma','seedance','runway','veo']}[state.priority];state.jobs=state.scenes.map((s,i)=>({provider:state.vendor==='auto'?route[i%route.length]:state.vendor,demo:true,status:'demo'}))}renderJobs();setStep(4);startJobPolling();toast(state.jobs.every(j=>j.demo)?'Simulasi dibuat. Belum ada video yang dihasilkan.':state.jobs.every(j=>j.error)?'Semua proses gagal. Periksa konfigurasi provider.':'Permintaan video dikirim.')}catch(e){toast(e.message)}finally{$('#generateBtn').disabled=false;$('#generateBtn').textContent='🚀 Generate Music Video'}}
 async function connectDrive(){if(!state.api)return toast('Deploy Worker terlebih dahulu untuk OAuth Google Drive.');if(state.drive.connected)return toast('Google Drive sudah terhubung.');try{const r=await api('/api/drive/connect');location.href=r.authUrl}catch(e){toast(e.message)}}
-function exportProject(){const data={app:'VIDGEN',version:'1.2.0',title:$('#projectTitle').value,genre:$('#genreInput').value,concept:$('#conceptInput').value,settings:{style:state.style,ratio:state.ratio,resolution:state.resolution,sceneDuration:state.duration,priority:state.priority,vendor:state.vendor,fallback:$('#fallbackToggle').checked,saveToDrive:$('#driveSaveToggle').checked},scenes:state.scenes};const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));a.download='VIDGEN-project.json';a.click();toast('Project JSON diekspor.')}
+function exportProject(){const data={app:'VIDGEN',version:'1.2.0',title:$('#projectTitle').value,genre:getGenreValue(),concept:$('#conceptInput').value,settings:{style:state.style,ratio:state.ratio,resolution:state.resolution,sceneDuration:state.duration,priority:state.priority,vendor:state.vendor,fallback:$('#fallbackToggle').checked,saveToDrive:$('#driveSaveToggle').checked},scenes:state.scenes};const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));a.download='VIDGEN-project.json';a.click();toast('Project JSON diekspor.')}
 const input=$('#audioInput'),drop=$('#dropzone'),player=$('#audioPlayer');
 function loadAudio(file){if(!file||!file.type.startsWith('audio/'))return toast('Pilih file audio.');if(state.audio?.url)URL.revokeObjectURL(state.audio.url);const url=URL.createObjectURL(file);state.audio={file,url};player.src=url;$('#audioTitle').textContent=file.name;$('#audioMeta').textContent=`${(file.size/1024/1024).toFixed(2)} MB • siap dianalisis`;$('#audioStrip').classList.add('show');buildWave();player.onloadedmetadata=()=>{state.audioDuration=player.duration||0;$('#audioTime').textContent=fmt(state.audioDuration);updateStats()};setStep(1);toast('Musik siap.')}
 input.onchange=e=>loadAudio(e.target.files[0]);['dragenter','dragover'].forEach(x=>drop.addEventListener(x,e=>{e.preventDefault();drop.classList.add('drag')}));['dragleave','drop'].forEach(x=>drop.addEventListener(x,e=>{e.preventDefault();drop.classList.remove('drag')}));drop.addEventListener('drop',e=>loadAudio(e.dataTransfer.files[0]));
@@ -65,7 +92,9 @@ $$('#priorityGroup button').forEach(b=>b.onclick=()=>{$$('#priorityGroup button'
 $$('#vendorList .vendor').forEach(b=>b.onclick=()=>{$$('#vendorList .vendor').forEach(x=>x.classList.remove('active'));b.classList.add('active');state.vendor=b.dataset.vendor;setStep(3);updateStats();renderScenes()});
 $('#resolution').onchange=e=>state.resolution=e.target.value;$('#sceneDuration').onchange=e=>{state.duration=Number(e.target.value);state.scenes.forEach((s,i)=>{s.duration=state.duration;s.start=i*state.duration});renderScenes()};
 $('#generateBtn').onclick=generate;$('#connectDrive').onclick=connectDrive;$('#driveQuick').onclick=()=>{$('[data-tab="storage"]').click()};$('#exportBtn').onclick=exportProject;$('#dismissNotice').onclick=()=>$('#notice').remove();
-$('#assetInput')?.addEventListener('change',e=>uploadAsset(e.target.files?.[0]));
+$('#genreSelect')?.addEventListener('change',syncGenreField);
+syncGenreField();
+$('#assetInput')?.addEventListener('change',e=>uploadAssets(e.target.files));
 $('#pickReference')?.addEventListener('click',()=>{$('[data-tab="assets"]').click();toast('Pilih tombol Pakai pada reference image.')});
 $('#clearReference')?.addEventListener('click',()=>{state.referenceAsset=null;renderAssets();toast('Reference image dilepas.')});
 $('#refreshJobs')?.addEventListener('click',()=>refreshJobs(false));
@@ -89,7 +118,7 @@ function renderHistory(){
   box.innerHTML=rows.length?rows.map(p=>`<div class="history-row"><div class="history-icon">▶</div><div><b>${esc(p.title||'Untitled Project')}</b><small>${esc(p.aspect_ratio||state.ratio)} • ${esc(p.resolution||state.resolution)} • ${esc(p.status||'draft')}</small></div><em>${p.created_at?new Date(p.created_at).toLocaleString('id-ID'):'Project'}</em></div>`).join(''):'<div class="empty">Belum ada riwayat proyek.</div>';
 }
 $$('.template-preset').forEach(b=>b.onclick=()=>{
-  $('#genreInput').value=b.dataset.genre||'';$('#conceptInput').value=b.dataset.concept||'';
+  getGenreValue()=b.dataset.genre||'';$('#conceptInput').value=b.dataset.concept||'';
   state.style=b.dataset.style||'cinematic';state.ratio=b.dataset.ratio||'16:9';state.duration=Number(b.dataset.duration||8);
   $$('#styleGrid .style').forEach(x=>x.classList.toggle('active',x.dataset.style===state.style));
   $$('#ratioGroup button').forEach(x=>x.classList.toggle('active',x.dataset.value===state.ratio));
