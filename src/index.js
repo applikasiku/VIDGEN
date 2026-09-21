@@ -183,18 +183,186 @@ function storyboardFrom(body) {
   });
 }
 
-async function createProviderTask(env, provider, scene, request) {
+
+function bytesToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let out = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) out += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  return btoa(out);
+}
+
+function base64ToBytes(value) {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+async function prepareReference(env, projectId, userId, origin) {
+  const asset = await env.DATABASE_V2.prepare(
+    "SELECT a.* FROM project_assets pa JOIN assets a ON a.id=pa.asset_id WHERE pa.project_id=? AND pa.role='reference' AND a.user_id=? LIMIT 1"
+  ).bind(projectId, userId).first();
+  if (!asset) return null;
+
+  const token = crypto.randomUUID();
+  await env.DATABASE_V2.prepare(
+    "INSERT INTO provider_media_tokens (token,user_id,r2_key,mime_type,expires_at) VALUES (?,?,?,?,datetime('now','+1 day'))"
+  ).bind(token, userId, asset.r2_key, asset.mime_type).run();
+
+  let referenceBase64 = null;
+  if (["image/jpeg","image/png"].includes(asset.mime_type) && Number(asset.size_bytes || 0) <= 8 * 1024 * 1024) {
+    const object = await env.STORAGE_V2.get(asset.r2_key);
+    if (object) referenceBase64 = bytesToBase64(await object.arrayBuffer());
+  }
+  return {
+    assetId: asset.id,
+    name: asset.name,
+    mimeType: asset.mime_type,
+    url: `${origin}/provider-media/${token}`,
+    base64: referenceBase64
+  };
+}
+
+async function createProviderTask(env, provider, scene, request, reference = null) {
   const payload = {
     prompt: scene.prompt,
     duration: scene.duration,
     aspectRatio: scene.aspectRatio,
-    resolution: scene.resolution
+    resolution: scene.resolution,
+    referenceUrl: reference?.url || null,
+    referenceBase64: reference?.base64 || null,
+    referenceMimeType: reference?.mimeType || null
   };
   if (provider === "luma") return createLumaVideo(env, payload, `${new URL(request.url).origin}/api/webhooks/luma`);
   if (provider === "seedance") return createSeedanceVideo(env, payload);
   if (provider === "runway") return createRunwayVideo(env, payload);
   if (provider === "veo") return createVeoVideo(env, payload);
   throw new Error(`Provider tidak didukung: ${provider}`);
+}
+
+async function persistProviderOutput(env, projectId, sceneId, provider, normalized) {
+  if (!normalized || normalized.status !== "completed") return null;
+  const key = `renders/${projectId}/${sceneId}/${Date.now()}-${provider}.mp4`;
+  const mimeType = normalized.mimeType || "video/mp4";
+
+  if (normalized.outputBase64) {
+    const bytes = base64ToBytes(normalized.outputBase64);
+    await env.STORAGE_V2.put(key, bytes, { httpMetadata: { contentType: mimeType } });
+  } else if (normalized.outputUrl && /^https:\/\//i.test(normalized.outputUrl)) {
+    const response = await fetch(normalized.outputUrl);
+    if (!response.ok || !response.body) throw new Error(`Gagal mengambil output ${provider}: HTTP ${response.status}`);
+    await env.STORAGE_V2.put(key, response.body, { httpMetadata: { contentType: response.headers.get("content-type") || mimeType } });
+  } else if (normalized.outputGcsUri) {
+    throw new Error("Veo mengembalikan GCS URI tanpa bytes. Hapus storageUri agar output dapat diarsipkan otomatis ke R2.");
+  } else {
+    throw new Error(`${provider} selesai tetapi URL/bytes output tidak ditemukan.`);
+  }
+
+  await env.DATABASE_V2.prepare(
+    "UPDATE scenes SET output_r2_key=?,status='completed',updated_at=CURRENT_TIMESTAMP WHERE id=? AND project_id=?"
+  ).bind(key, sceneId, projectId).run();
+  return key;
+}
+
+async function submitSceneJob(env, project, scene, request, { vendor, fallback = true, reference = null } = {}) {
+  const candidates = providerCandidates({
+    vendor: vendor || project.router_mode || "auto",
+    priority: project.router_priority || "quality",
+    sceneIndex: Number(scene.scene_index || 0),
+    fallback
+  });
+  const jobId = uid("job");
+  const payload = {
+    prompt: scene.prompt,
+    duration: Number(scene.duration_seconds || 8),
+    aspectRatio: project.aspect_ratio,
+    resolution: project.resolution
+  };
+  const attempts = [];
+
+  for (const provider of candidates) {
+    try {
+      const result = await createProviderTask(env, provider, payload, request, reference);
+      const status = result.demo ? "demo" : "submitted";
+      const progress = result.demo ? 32 : 5;
+      await env.DATABASE_V2.prepare(
+        "INSERT INTO jobs (id,project_id,scene_id,job_type,provider,provider_job_id,status,progress,payload_json,result_json) VALUES (?,?,?,?,?,?,?,?,?,?)"
+      ).bind(jobId, project.id, scene.id, "scene_generation", provider, result.taskId || null, status, progress, JSON.stringify(payload), JSON.stringify({ ...result, attempts })).run();
+      await env.DATABASE_V2.prepare(
+        "UPDATE scenes SET vendor=?,provider_job_id=?,status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?"
+      ).bind(provider, result.taskId || null, status, scene.id).run();
+      return { jobId, sceneId: scene.id, sceneIndex: scene.scene_index, provider, taskId: result.taskId, demo: Boolean(result.demo), status };
+    } catch (error) {
+      attempts.push({ provider, error: String(error.message || error) });
+    }
+  }
+
+  const errorMessage = attempts.map(a => `${a.provider}: ${a.error}`).join(" | ") || "Tidak ada provider yang tersedia.";
+  await env.DATABASE_V2.prepare(
+    "INSERT INTO jobs (id,project_id,scene_id,job_type,provider,status,progress,error_message,payload_json,result_json) VALUES (?,?,?,?,?,?,?,?,?,?)"
+  ).bind(jobId, project.id, scene.id, "scene_generation", candidates[0] || "auto", "failed", 0, errorMessage, JSON.stringify(payload), JSON.stringify({ attempts })).run();
+  await env.DATABASE_V2.prepare("UPDATE scenes SET status='failed',updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(scene.id).run();
+  return { jobId, sceneId: scene.id, sceneIndex: scene.scene_index, provider: candidates[0] || "auto", error: errorMessage, status: "failed" };
+}
+
+async function applyNormalizedJob(env, job, normalized) {
+  let status = normalized.status || "running";
+  let errorMessage = normalized.error ? String(normalized.error) : null;
+  let outputKey = null;
+
+  if (status === "completed" && job.scene_id) {
+    try {
+      outputKey = await persistProviderOutput(env, job.project_id, job.scene_id, job.provider, normalized);
+    } catch (error) {
+      status = "failed";
+      errorMessage = String(error.message || error);
+      await env.DATABASE_V2.prepare("UPDATE scenes SET status='failed',updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(job.scene_id).run();
+    }
+  } else if (status === "failed" && job.scene_id) {
+    await env.DATABASE_V2.prepare("UPDATE scenes SET status='failed',updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(job.scene_id).run();
+  } else if (job.scene_id && ["queued","running","submitted"].includes(status)) {
+    await env.DATABASE_V2.prepare("UPDATE scenes SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(status === "submitted" ? "queued" : status, job.scene_id).run();
+  }
+
+  await env.DATABASE_V2.prepare(
+    "UPDATE jobs SET status=?,progress=?,error_message=?,result_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=?"
+  ).bind(status, Number(normalized.progress || 0), errorMessage, JSON.stringify(normalized.raw || normalized), job.id).run();
+  return { status, outputKey, errorMessage };
+}
+
+async function syncProjectJobs(env, projectId, userId) {
+  const active = await env.DATABASE_V2.prepare(
+    "SELECT j.* FROM jobs j JOIN projects p ON p.id=j.project_id WHERE j.project_id=? AND p.user_id=? AND j.provider_job_id IS NOT NULL AND j.status IN ('queued','submitted','running','processing','dreaming') ORDER BY j.created_at ASC LIMIT 12"
+  ).bind(projectId, userId).all();
+
+  for (const job of active.results || []) {
+    if (String(job.provider_job_id || "").startsWith("demo_")) continue;
+    try {
+      const normalized = await pollProvider(env, job.provider, job.provider_job_id);
+      await applyNormalizedJob(env, job, normalized);
+    } catch (error) {
+      await env.DATABASE_V2.prepare(
+        "UPDATE jobs SET error_message=?,updated_at=CURRENT_TIMESTAMP WHERE id=?"
+      ).bind(String(error.message || error), job.id).run();
+    }
+  }
+
+  const scenes = await env.DATABASE_V2.prepare(
+    "SELECT id,scene_index,title,prompt,start_seconds,duration_seconds,vendor,provider_job_id,output_r2_key,status FROM scenes WHERE project_id=? ORDER BY scene_index"
+  ).bind(projectId).all();
+  const sceneRows = scenes.results || [];
+  const jobs = await env.DATABASE_V2.prepare(
+    "SELECT id,project_id,scene_id,job_type,provider,provider_job_id,status,progress,error_message,created_at,updated_at FROM jobs WHERE project_id=? ORDER BY created_at DESC"
+  ).bind(projectId).all();
+  const jobRows = jobs.results || [];
+  const hasActive = jobRows.some(j => ["queued","submitted","running","processing","dreaming"].includes(j.status));
+  const completed = sceneRows.length > 0 && sceneRows.every(s => s.output_r2_key && s.status === "completed");
+  const anyDone = sceneRows.some(s => s.output_r2_key && s.status === "completed");
+  const anyFailed = sceneRows.some(s => s.status === "failed");
+  const projectStatus = hasActive ? "rendering" : completed ? "completed" : anyFailed && anyDone ? "partial" : anyFailed ? "failed" : "draft";
+  await env.DATABASE_V2.prepare("UPDATE projects SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?").bind(projectStatus, projectId, userId).run();
+  return { jobs: jobRows, scenes: sceneRows, projectStatus };
 }
 
 export default {
