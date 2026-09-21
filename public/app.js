@@ -9,9 +9,32 @@ function syncGenreField(){const s=$('#genreSelect'),w=$('#genreCustomWrap');if(!
 async function api(path,opt={}){const r=await fetch(path,{...opt,headers:{'content-type':'application/json',...(opt.headers||{})}});if(!r.ok)throw new Error((await r.json().catch(()=>({}))).error||`HTTP ${r.status}`);return r.json()}
 function buildWave(){const w=$('#wave');w.innerHTML='';for(let i=0;i<90;i++){const b=document.createElement('i');b.style.height=`${5+Math.random()*20}px`;w.appendChild(b)}}buildWave();
 function setStep(n){$$('.step').forEach((e,i)=>e.classList.toggle('active',i<n))}
+function latestJobsForScenes(jobs=state.jobs){
+  const seen=new Set(),out=[];
+  for(const job of jobs){
+    const key=job.scene_id||job.sceneId||job.id||`job_${out.length}`;
+    if(seen.has(key))continue;
+    seen.add(key);out.push(job);
+  }
+  return out;
+}
+function friendlyJobError(message=''){
+  const s=String(message||'').replace(/\s+/g,' ').trim();
+  const low=s.toLowerCase();
+  if(low.includes('too many subrequests'))return 'Cloudflare Worker mencapai batas request. Pipeline v1.4.3 sekarang memakai batch kecil.';
+  if(low.includes('invalid_api_key')||low.includes('authorization failed')||low.includes('not authenticated')||low.includes('unauthorized')||low.includes('api key tidak valid'))return 'API key provider tidak valid atau tidak cocok dengan endpoint.';
+  if(low.includes('not enough credits')||low.includes('credit provider tidak cukup')||low.includes('insufficient credit'))return 'Credit provider tidak cukup untuk menjalankan render.';
+  if(low.includes('rate limit')||low.includes('too_many_requests')||low.includes('quota'))return 'Quota / rate limit provider habis. Gunakan model lain atau aktifkan billing/quota.';
+  return s.length>220?s.slice(0,220)+'…':s;
+}
+function providerIssuesText(issues={}){
+  const values=Object.values(issues||{}).filter(Boolean);
+  return values.length?values.join(' • '):'';
+}
+const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 function updateStats(){
   $('#sceneCount').textContent=state.scenes.length;$('#projectCount').textContent=state.projects.length+(state.currentProjectId?0:0);$('#driveKpi').textContent=state.drive.connected?'Aktif':'Belum';$('#routerKpi').textContent=state.vendor==='auto'?'Auto':state.vendor[0].toUpperCase()+state.vendor.slice(1);
-  const total=state.scenes.reduce((a,s)=>a+Number(s.duration||0),0);$('#estimate').textContent=`${state.scenes.length} scene • ${fmt(total)}`;$('#jobCount').textContent=`${state.jobs.length} job`;
+  const total=state.scenes.reduce((a,s)=>a+Number(s.duration||0),0);$('#estimate').textContent=`${state.scenes.length} scene • ${fmt(total)}`;$('#jobCount').textContent=`${latestJobsForScenes().length} job`;
 }
 async function bootstrap(){
   try{const data=await api('/api/bootstrap');state.api=true;state.providers=data.providers||[];state.projects=data.projects||[];state.assets=data.assets||[];state.drive=data.drive||{connected:false};$('#cloudState').className='cloud-state ok';$('#cloudState').innerHTML='<span></span><b>Cloudflare API</b>';$('#backendMode').textContent='Cloudflare Worker';renderProviders();renderProjects();renderAssets();renderDrive();renderHistory();}
@@ -166,12 +189,23 @@ async function regenerateScene(){
   }catch(e){toast(e.message)}finally{btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-rotate"></i> Regenerate Scene'}
 }
 function renderJobs(){
-  const box=$('#jobList'),summary=$('#queueSummary');if(!state.jobs.length){box.innerHTML='<div class="empty">Belum ada job.</div>';if(summary)summary.textContent='Belum ada render aktif.';updateStats();return}
-  const failed=state.jobs.filter(j=>j.error||j.error_message||j.status==='failed').length;
-  const done=state.jobs.filter(j=>j.status==='completed').length;
-  const active=state.jobs.filter(j=>['queued','submitted','running','processing','dreaming'].includes(j.status)).length;
+  const box=$('#jobList'),summary=$('#queueSummary');
+  const visibleJobs=latestJobsForScenes();
+  if(!visibleJobs.length){box.innerHTML='<div class="empty">Belum ada job.</div>';if(summary)summary.textContent='Belum ada render aktif.';updateStats();return}
+  const failed=visibleJobs.filter(j=>j.error||j.error_message||j.status==='failed').length;
+  const done=visibleJobs.filter(j=>j.status==='completed').length;
+  const active=visibleJobs.filter(j=>['queued','submitted','running','processing','dreaming'].includes(j.status)).length;
   if(summary)summary.textContent=`${active} aktif • ${done} selesai • ${failed} gagal`;
-  box.innerHTML=state.jobs.map((j,i)=>{const status=j.error||j.error_message?'failed':j.demo?'demo':j.status||'submitted';const progress=Number.isFinite(Number(j.progress))?Number(j.progress):(status==='completed'?100:status==='failed'?5:status==='demo'?32:12);const scene=state.scenes.find(s=>s.id===(j.scene_id||j.sceneId));const sceneNo=(scene?.index??j.sceneIndex??i)+1;return `<div class="job job-${esc(status)}"><div class="job-head"><b>Scene ${sceneNo} • ${esc(j.provider||'auto')}</b><span>${esc(status)}</span></div><div class="progress"><i style="width:${Math.max(3,Math.min(100,progress))}%"></i></div>${j.error_message||j.error?`<small class="job-error">${esc(j.error_message||j.error)}</small>`:''}</div>`}).join('');updateStats()
+  box.innerHTML=visibleJobs.map((j,i)=>{
+    const status=j.error||j.error_message?'failed':j.demo?'demo':j.status||'submitted';
+    const progress=Number.isFinite(Number(j.progress))?Number(j.progress):(status==='completed'?100:status==='failed'?5:status==='demo'?32:12);
+    const scene=state.scenes.find(s=>s.id===(j.scene_id||j.sceneId));
+    const sceneNo=(scene?.index??j.sceneIndex??i)+1;
+    const rawError=j.error_message||j.error||'';
+    const shortError=rawError?friendlyJobError(rawError):'';
+    return `<div class="job job-${esc(status)}"><div class="job-head"><b>Scene ${sceneNo} • ${esc(j.provider||'auto')}</b><span>${esc(status)}</span></div><div class="progress"><i style="width:${Math.max(3,Math.min(100,progress))}%"></i></div>${shortError?`<small class="job-error" title="${esc(rawError)}">${esc(shortError)}</small>`:''}</div>`
+  }).join('');
+  updateStats()
 }
 function applyJobSync(r){
   state.jobs=r.jobs||[];
@@ -231,9 +265,54 @@ async function saveProject(){
   try{const detail=await api('/api/projects/'+encodeURIComponent(r.id));state.scenes=mapServerScenes(detail.scenes||[]);state.jobs=detail.jobs||state.jobs;state.referenceAsset=detail.reference||state.referenceAsset;renderScenes();renderJobs()}catch{}
   renderProjects();renderHistory();updateStats();return r.id
 }
-async function generate(){if(!state.api)return toast('Server belum terhubung. Muat ulang untuk mencoba lagi.');if(!state.scenes.length)return toast('Buat storyboard terlebih dahulu.');$('#generateBtn').disabled=true;$('#generateBtn').innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> Menyiapkan render…';try{state.currentProjectId=await saveProject();if(state.api){const r=await api('/api/generate',{method:'POST',body:JSON.stringify({projectId:state.currentProjectId,fallback:$('#fallbackToggle').checked})});state.jobs=r.jobs||[];for(const j of state.jobs){const s=state.scenes.find(x=>x.id===(j.sceneId||j.scene_id));if(s){s.status=j.demo?'demo':j.error?'failed':'queued';s.vendor=j.provider||s.vendor}}renderScenes()}else{const route={quality:['google','seedance','runway','luma'],balanced:['seedance','google','runway','luma'],speed:['google','runway','luma','seedance'],cost:['google','luma','seedance','runway']}[state.priority];state.jobs=state.scenes.map((s,i)=>({provider:state.vendor==='auto'?route[i%route.length]:state.vendor,demo:true,status:'demo'}))}renderJobs();setStep(4);startJobPolling();toast(state.jobs.every(j=>j.demo)?'Simulasi dibuat. Belum ada video yang dihasilkan.':state.jobs.every(j=>j.error)?'Semua proses gagal. Periksa konfigurasi provider.':'Permintaan video dikirim.')}catch(e){toast(e.message)}finally{$('#generateBtn').disabled=false;$('#generateBtn').innerHTML='<i class="fa-solid fa-rocket"></i> Generate Music Video'}}
+async function generate(){
+  if(!state.api)return toast('Server belum terhubung. Muat ulang untuk mencoba lagi.');
+  if(!state.scenes.length)return toast('Buat storyboard terlebih dahulu.');
+  const btn=$('#generateBtn');btn.disabled=true;btn.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> Menyiapkan render…';
+  try{
+    state.currentProjectId=await saveProject();
+    if(state.api){
+      const sceneIds=state.scenes.map(s=>s.id).filter(Boolean);
+      const batchSize=3;
+      const allJobs=[];
+      let halted=false;
+      let issues={};
+      for(let i=0;i<sceneIds.length;i+=batchSize){
+        const batch=sceneIds.slice(i,i+batchSize);
+        btn.innerHTML=`<i class="fa-solid fa-spinner fa-spin"></i> Mengirim scene ${i+1}–${Math.min(i+batch.length,sceneIds.length)} / ${sceneIds.length}`;
+        const r=await api('/api/generate',{method:'POST',body:JSON.stringify({projectId:state.currentProjectId,sceneIds:batch,fallback:$('#fallbackToggle').checked})});
+        const jobs=r.jobs||[];
+        allJobs.push(...jobs);
+        state.jobs=[...allJobs];
+        for(const j of jobs){
+          const s=state.scenes.find(x=>x.id===(j.sceneId||j.scene_id));
+          if(s){s.status=j.demo?'demo':j.error?'failed':j.status||'queued';s.vendor=j.provider||s.vendor}
+        }
+        renderScenes();renderJobs();
+        if(r.halted){
+          halted=true;issues=r.providerIssues||{};break;
+        }
+        if(i+batchSize<sceneIds.length)await wait(900);
+      }
+      setStep(4);
+      const active=state.jobs.some(j=>['queued','submitted','running','processing','dreaming'].includes(j.status));
+      if(active)startJobPolling();
+      if(halted){
+        const detail=providerIssuesText(issues);
+        toast(detail||'Render dihentikan karena semua provider yang dikonfigurasi sedang bermasalah.');
+      }else if(state.jobs.every(j=>j.demo)){
+        toast('Simulasi dibuat. Belum ada video yang dihasilkan.');
+      }else if(state.jobs.every(j=>j.error||j.status==='failed')){
+        toast('Semua proses gagal. Periksa API key, quota, dan credit provider.');
+      }else{
+        toast('Permintaan video dikirim bertahap.');
+      }
+    }
+  }catch(e){toast(friendlyJobError(e.message))}
+  finally{btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-rocket"></i> Generate Music Video'}
+}
 async function connectDrive(){if(!state.api)return toast('Deploy Worker terlebih dahulu untuk OAuth Google Drive.');if(state.drive.connected)return toast('Google Drive sudah terhubung.');try{const r=await api('/api/drive/connect');location.href=r.authUrl}catch(e){toast(e.message)}}
-function exportProject(){const data={app:'VIDGEN',version:'1.4.2',title:$('#projectTitle').value,genre:getGenreValue(),concept:$('#conceptInput').value,settings:{style:state.style,ratio:state.ratio,resolution:state.resolution,sceneDuration:state.duration,priority:state.priority,vendor:state.vendor,googleModel:state.googleModel,fallback:$('#fallbackToggle').checked,saveToDrive:$('#driveSaveToggle').checked},scenes:state.scenes};const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));a.download='VIDGEN-project.json';a.click();toast('Project JSON diekspor.')}
+function exportProject(){const data={app:'VIDGEN',version:'1.4.3',title:$('#projectTitle').value,genre:getGenreValue(),concept:$('#conceptInput').value,settings:{style:state.style,ratio:state.ratio,resolution:state.resolution,sceneDuration:state.duration,priority:state.priority,vendor:state.vendor,googleModel:state.googleModel,fallback:$('#fallbackToggle').checked,saveToDrive:$('#driveSaveToggle').checked},scenes:state.scenes};const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));a.download='VIDGEN-project.json';a.click();toast('Project JSON diekspor.')}
 const input=$('#audioInput'),drop=$('#dropzone'),player=$('#audioPlayer');
 function loadAudio(file){if(!file||!file.type.startsWith('audio/'))return toast('Pilih file audio.');if(state.audio?.url?.startsWith('blob:'))URL.revokeObjectURL(state.audio.url);const url=URL.createObjectURL(file);state.audio={file,url,name:file.name,r2Key:null,uploadPromise:null};player.src=url;$('#audioTitle').textContent=file.name;$('#audioMeta').textContent=`${(file.size/1024/1024).toFixed(2)} MB • menunggu metadata`;$('#audioStrip').classList.add('show');buildWave();player.onloadedmetadata=()=>{state.audioDuration=player.duration||0;$('#audioTime').textContent=fmt(state.audioDuration);updateStats()};if(state.api)state.audio.uploadPromise=uploadAudio(file);setStep(1);toast('Musik siap.')}
 input.onchange=e=>loadAudio(e.target.files[0]);['dragenter','dragover'].forEach(x=>drop.addEventListener(x,e=>{e.preventDefault();drop.classList.add('drag')}));['dragleave','drop'].forEach(x=>drop.addEventListener(x,e=>{e.preventDefault();drop.classList.remove('drag')}));drop.addEventListener('drop',e=>loadAudio(e.dataTransfer.files[0]));
