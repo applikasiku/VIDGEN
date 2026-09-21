@@ -1,4 +1,4 @@
-const state={api:false,providers:[],projects:[],assets:[],referenceAsset:null,referenceUploadAutoSelect:false,drive:{connected:false},scenes:[],jobs:[],style:'cinematic',ratio:'16:9',resolution:'1080p',duration:8,priority:'quality',vendor:'auto',googleModel:'veo-3.1-generate-preview',audio:null,audioDuration:0,currentProjectId:null,editing:null,jobTimer:null,projectLoading:false};
+const state={api:false,providers:[],projects:[],assets:[],referenceAsset:null,referenceUploadAutoSelect:false,drive:{configured:false,connected:false},driveArchiving:false,scenes:[],jobs:[],style:'cinematic',ratio:'16:9',resolution:'1080p',duration:8,priority:'quality',vendor:'auto',googleModel:'veo-3.1-generate-preview',audio:null,audioDuration:0,currentProjectId:null,editing:null,jobTimer:null,projectLoading:false};
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const toast=m=>{const e=$('#toast');e.textContent=m;e.classList.add('show');clearTimeout(window.__toast);window.__toast=setTimeout(()=>e.classList.remove('show'),2300)};
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -82,7 +82,23 @@ function renderProjects(){
   $$('[data-open-project]').forEach(b=>b.onclick=()=>openProject(b.dataset.openProject));
   $$('[data-delete-project]').forEach(b=>b.onclick=()=>deleteProject(b.dataset.deleteProject));
 }
-function renderDrive(){const connected=state.drive.connected;$('#driveKpi').textContent=connected?'Aktif':'Belum';$('#driveTitle').textContent=connected?(state.drive.name||state.drive.email||'Terhubung'):'Belum terhubung';$('#driveText').textContent=connected?`Google Drive siap. Output akan diarsipkan ke folder VIDGEN${state.drive.email?' • '+state.drive.email:''}.`:'Hubungkan Google Drive untuk menyimpan video final, storyboard dan thumbnail.';$('#connectDrive').innerHTML=connected?'<i class="fa-solid fa-check"></i> Google Drive Terhubung':'<i class="fa-brands fa-google-drive"></i> Hubungkan Google Drive'}
+function renderDrive(){
+  const configured=state.drive.configured!==false;
+  const connected=Boolean(state.drive.connected);
+  const archived=state.scenes.filter(s=>s.driveFileId).length;
+  const ready=state.scenes.filter(s=>s.outputR2Key&&!s.driveFileId).length;
+  $('#driveKpi').textContent=connected?'Aktif':'Belum';
+  $('#driveTitle').textContent=connected?(state.drive.name||state.drive.email||'Terhubung'):(configured?'Belum terhubung':'OAuth belum dikonfigurasi');
+  $('#driveText').textContent=connected?('Drive siap • folder /'+(state.drive.folderName||'VIDGEN')+(state.drive.email?' • '+state.drive.email:'')):(configured?'Hubungkan akun Google untuk mengarsipkan hasil render VIDGEN.':'Tambahkan GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, dan SESSION_SECRET di Cloudflare Secrets.');
+  const oauth=$('#driveOauthStatus');if(oauth){oauth.textContent=connected?'OAuth terhubung':(configured?'OAuth siap':'OAuth belum lengkap');oauth.classList.toggle('ok',connected)}
+  const count=$('#driveArchiveCount');if(count)count.textContent=archived+' scene tersimpan';
+  const connect=$('#connectDrive'),test=$('#testDrive'),archive=$('#archiveDrive'),disconnect=$('#disconnectDrive'),progress=$('#driveProgress');
+  if(connect){connect.hidden=connected;connect.disabled=!configured;connect.innerHTML='<i class="fa-brands fa-google-drive"></i> Hubungkan Google Drive'}
+  if(test)test.hidden=!connected;
+  if(archive){archive.hidden=!connected;archive.disabled=state.driveArchiving||!ready;archive.innerHTML=state.driveArchiving?'<i class="fa-solid fa-spinner fa-spin"></i> Mengarsipkan…':('<i class="fa-solid fa-cloud-arrow-up"></i> Arsip Scene'+(ready?' ('+ready+')':''))}
+  if(disconnect)disconnect.hidden=!connected;
+  if(progress)progress.textContent=state.driveArchiving?'Mengunggah scene ke Google Drive…':(connected?(ready?ready+' scene siap diarsipkan.':'Tidak ada scene baru yang perlu diarsipkan.'):(configured?'Klik Hubungkan Google Drive untuk mulai.':'Lengkapi OAuth secrets di Cloudflare.'));
+}
 function renderCurrentReference(){
   const preview=$('#referencePreview'),name=$('#referenceName'),status=$('#referenceStatus');
   if(!preview||!name||!status)return;
@@ -174,7 +190,7 @@ async function makeStoryboard(){
 }
 function mapServerScenes(rows=[]){
   const oldByIndex=new Map(state.scenes.map((s,i)=>[Number(s.index??i),s]));
-  return rows.map((s,i)=>{const old=oldByIndex.get(Number(s.scene_index??i))||{};return {...old,id:s.id,index:Number(s.scene_index??i),title:s.title||old.title||`Scene ${i+1}`,start:Number(s.start_seconds??old.start??0),duration:Number(s.duration_seconds??old.duration??state.duration),vendor:s.vendor||old.vendor||'auto',prompt:s.prompt||old.prompt||'',status:s.status||old.status||'draft',providerJobId:s.provider_job_id||null,outputR2Key:s.output_r2_key||null}});
+  return rows.map((s,i)=>{const old=oldByIndex.get(Number(s.scene_index??i))||{};return {...old,id:s.id,index:Number(s.scene_index??i),title:s.title||old.title||`Scene ${i+1}`,start:Number(s.start_seconds??old.start??0),duration:Number(s.duration_seconds??old.duration??state.duration),vendor:s.vendor||old.vendor||'auto',prompt:s.prompt||old.prompt||'',status:s.status||old.status||'draft',providerJobId:s.provider_job_id||null,outputR2Key:s.output_r2_key||null,driveFileId:s.drive_file_id||old.driveFileId||null,driveWebViewLink:s.drive_web_view_link||old.driveWebViewLink||null}});
 }
 function sceneStatusLabel(s){return s?.status|| (s?.outputR2Key?'completed':'draft')}
 function renderScenes(){
