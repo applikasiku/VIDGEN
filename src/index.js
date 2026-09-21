@@ -283,13 +283,37 @@ async function persistProviderOutput(env, projectId, sceneId, provider, normaliz
   return key;
 }
 
-async function submitSceneJob(env, project, scene, request, { vendor, fallback = true, reference = null, excludeProviders = [], googleModel = null } = {}) {
+function providerFailureKind(message=""){
+  const s=String(message||"").toLowerCase();
+  if(s.includes("too many subrequests")) return "worker_limit";
+  if(s.includes("invalid_api_key")||s.includes("invalid api key")||s.includes("authorization failed")||s.includes("not authenticated")||s.includes("unauthorized")||s.includes(" 401")||s.includes(" 403")) return "auth";
+  if(s.includes("not enough credits")||s.includes("insufficient credit")||s.includes("insufficient credits")) return "credits";
+  if(s.includes("rate limit")||s.includes("too_many_requests")||s.includes(" 429")) return "rate_limit";
+  if(s.includes("quota")) return "quota";
+  return "provider_error";
+}
+
+function providerFailureSummary(provider,message=""){
+  const kind=providerFailureKind(message);
+  if(kind==="auth") return `${provider}: API key tidak valid / tidak cocok dengan endpoint.`;
+  if(kind==="credits") return `${provider}: credit provider tidak cukup.`;
+  if(kind==="rate_limit"||kind==="quota") return `${provider}: quota atau rate limit habis.`;
+  if(kind==="worker_limit") return "Cloudflare Worker mencapai batas subrequest.";
+  const clean=String(message||"Provider gagal").replace(/\s+/g," ").slice(0,220);
+  return `${provider}: ${clean}`;
+}
+
+function blocksProviderForBatch(message=""){
+  return ["auth","credits","rate_limit","quota"].includes(providerFailureKind(message));
+}
+
+async function submitSceneJob(env, project, scene, request, { vendor, fallback = true, reference = null, excludeProviders = [], googleModel = null, blockedProviders = new Set(), providerIssues = new Map() } = {}) {
   const candidates = providerCandidates({
     vendor: vendor || project.router_mode || "auto",
     priority: project.router_priority || "quality",
     sceneIndex: Number(scene.scene_index || 0),
     fallback
-  }).filter(p => !excludeProviders.includes(p));
+  }).filter(p => !excludeProviders.includes(p) && !blockedProviders.has(p));
   const jobId = uid("job");
   const payload = {
     prompt: scene.prompt,
@@ -332,7 +356,12 @@ async function submitSceneJob(env, project, scene, request, { vendor, fallback =
       ).bind(provider, result.taskId || null, status, scene.id).run();
       return { jobId, sceneId: scene.id, sceneIndex: scene.scene_index, provider, taskId: result.taskId, demo: Boolean(result.demo), status };
     } catch (error) {
-      attempts.push({ provider, error: String(error.message || error) });
+      const rawError=String(error.message || error);
+      attempts.push({ provider, error: rawError });
+      if(blocksProviderForBatch(rawError)){
+        blockedProviders.add(provider);
+        providerIssues.set(provider, providerFailureSummary(provider, rawError));
+      }
     }
   }
 
@@ -347,7 +376,7 @@ async function submitSceneJob(env, project, scene, request, { vendor, fallback =
     return { jobId, sceneId: scene.id, sceneIndex: scene.scene_index, provider, taskId: result.taskId, demo: true, status: "demo" };
   }
 
-  const errorMessage = attempts.map(a => `${a.provider}: ${a.error || a.note || "gagal"}`).join(" | ") || "Tidak ada provider yang tersedia.";
+  const errorMessage = attempts.map(a => a.error ? providerFailureSummary(a.provider,a.error) : `${a.provider}: ${a.note || "gagal"}`).join(" | ") || (blockedProviders.size ? "Provider tersedia sedang diblokir untuk batch ini karena auth/quota/credit." : "Tidak ada provider yang tersedia.");
   await env.DATABASE_V2.prepare(
     "INSERT INTO jobs (id,project_id,scene_id,job_type,provider,status,progress,error_message,payload_json,result_json) VALUES (?,?,?,?,?,?,?,?,?,?)"
   ).bind(jobId, project.id, scene.id, "scene_generation", candidates[0] || "auto", "failed", 0, errorMessage, JSON.stringify(payload), JSON.stringify({ attempts })).run();
@@ -386,6 +415,8 @@ async function syncProjectJobs(env, projectId, userId, request) {
 
   let reference;
   let referencePrepared = false;
+  const blockedProviders = new Set();
+  const providerIssues = new Map();
   const getReference = async () => {
     if (!referencePrepared) {
       reference = await prepareReference(env, projectId, userId, new URL(request.url).origin);
@@ -417,7 +448,9 @@ async function syncProjectJobs(env, projectId, userId, request) {
                 vendor: "auto",
                 fallback: true,
                 reference: await getReference(),
-                excludeProviders: usedProviders
+                excludeProviders: usedProviders,
+                blockedProviders,
+                providerIssues
               });
               if (retry && !retry.error) {
                 await env.DATABASE_V2.prepare("UPDATE scenes SET status='queued',updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(job.scene_id).run();
@@ -427,9 +460,14 @@ async function syncProjectJobs(env, projectId, userId, request) {
         }
       }
     } catch (error) {
+      const rawError=String(error.message || error);
+      if(blocksProviderForBatch(rawError)){
+        blockedProviders.add(job.provider);
+        providerIssues.set(job.provider, providerFailureSummary(job.provider, rawError));
+      }
       await env.DATABASE_V2.prepare(
         "UPDATE jobs SET error_message=?,updated_at=CURRENT_TIMESTAMP WHERE id=?"
-      ).bind(String(error.message || error), job.id).run();
+      ).bind(providerFailureSummary(job.provider, rawError), job.id).run();
     }
   }
 
@@ -462,7 +500,7 @@ export default {
       return json({
         ok: true,
         app: env.APP_NAME || "VIDGEN",
-        version: env.APP_VERSION || "1.4.2",
+        version: env.APP_VERSION || "1.4.3",
         runtime: "cloudflare-workers",
         time: new Date().toISOString()
       });
@@ -480,7 +518,7 @@ export default {
       return json({
         ok: true,
         app: env.APP_NAME || "VIDGEN",
-        version: env.APP_VERSION || "1.4.2",
+        version: env.APP_VERSION || "1.4.3",
         providers
       });
     }
@@ -509,7 +547,7 @@ export default {
       return json({
         ok: checks.worker && checks.d1Binding && checks.r2Binding && checks.d1 === "ok",
         app: env.APP_NAME || "VIDGEN",
-        version: env.APP_VERSION || "1.4.2",
+        version: env.APP_VERSION || "1.4.3",
         checks,
         providers,
         databaseError
@@ -693,20 +731,55 @@ export default {
         const projectId = safeText(b.projectId, 100);
         const project = await env.DATABASE_V2.prepare("SELECT * FROM projects WHERE id=? AND user_id=?").bind(projectId, session.id).first();
         if (!project) return withSession(json({ error: "Project tidak ditemukan." }, 404), session);
-        const scenes = (await env.DATABASE_V2.prepare("SELECT * FROM scenes WHERE project_id=? ORDER BY scene_index").bind(projectId).all()).results || [];
-        if (!scenes.length) return withSession(json({ error: "Proyek belum memiliki scene." }, 400), session);
+
+        const allScenes = (await env.DATABASE_V2.prepare("SELECT * FROM scenes WHERE project_id=? ORDER BY scene_index").bind(projectId).all()).results || [];
+        if (!allScenes.length) return withSession(json({ error: "Proyek belum memiliki scene." }, 400), session);
+
+        const requestedIds = Array.isArray(b.sceneIds) ? b.sceneIds.map(x=>safeText(x,120)).filter(Boolean).slice(0,4) : [];
+        const selectedScenes = requestedIds.length
+          ? allScenes.filter(s=>requestedIds.includes(s.id)).slice(0,4)
+          : allScenes.filter(s=>!s.output_r2_key && !["submitted","running","processing"].includes(s.status)).slice(0,4);
+
+        if (!selectedScenes.length) {
+          return withSession(json({ ok:true, jobs:[], halted:false, remaining:0, providerIssues:{} }), session);
+        }
+
         const reference = await prepareReference(env, projectId, session.id, new URL(request.url).origin);
+        const blockedProviders = new Set();
+        const providerIssues = new Map();
         const created = [];
-        for (const scene of scenes.slice(0, 30)) {
+
+        for (const scene of selectedScenes) {
           created.push(await submitSceneJob(env, project, scene, request, {
             vendor: project.router_mode,
             fallback: b.fallback !== false,
-            reference
+            reference,
+            blockedProviders,
+            providerIssues
           }));
         }
+
+        const pendingSceneIds = allScenes
+          .filter(s=>!s.output_r2_key && !selectedScenes.some(x=>x.id===s.id))
+          .map(s=>s.id);
+
+        const configuredCount = providerCatalog(env).filter(p=>p.configured).length;
+        const noUsableProvider = configuredCount > 0 && blockedProviders.size >= configuredCount;
+        const allBatchFailed = created.length > 0 && created.every(j=>j.error || j.demo);
+        const halted = noUsableProvider && allBatchFailed;
+
         const status = created.some(j => !j.error && !j.demo) ? "rendering" : created.every(j => j.demo) ? "demo" : "failed";
         await env.DATABASE_V2.prepare("UPDATE projects SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(status, projectId).run();
-        return withSession(json({ ok: true, jobs: created }), session);
+
+        return withSession(json({
+          ok: true,
+          jobs: created,
+          halted,
+          remaining: pendingSceneIds.length,
+          remainingSceneIds: pendingSceneIds,
+          blockedProviders: [...blockedProviders],
+          providerIssues: Object.fromEntries(providerIssues)
+        }), session);
       }
 
       const sceneMatch = url.pathname.match(/^\/api\/scenes\/([^/]+)(?:\/(output|regenerate))?$/);
