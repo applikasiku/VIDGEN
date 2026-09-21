@@ -387,16 +387,23 @@ export default {
     try {
       await ensureSchema(env);
 
+      if (isProviderMedia && request.method === "GET") {
+        const token = safeText(url.pathname.split("/").pop(), 120);
+        const row = await env.DATABASE_V2.prepare("SELECT r2_key,mime_type FROM provider_media_tokens WHERE token=? AND expires_at>CURRENT_TIMESTAMP").bind(token).first();
+        if (!row) return new Response("Expired or invalid media token", { status: 404 });
+        const object = await env.STORAGE_V2.get(row.r2_key);
+        if (!object) return new Response("Media not found", { status: 404 });
+        return new Response(object.body, { headers: { "content-type": row.mime_type || "application/octet-stream", "cache-control": "private, max-age=300" } });
+      }
+
       // Provider callbacks are server-to-server and do not need a browser session.
       if (url.pathname === "/api/webhooks/luma" && request.method === "POST") {
         try {
           const b = await bodyJson(request);
           const providerId = b.id || b.generation_id;
           if (providerId) {
-            const state = b.state || b.status || "updated";
-            const progress = state === "completed" ? 100 : state === "failed" ? 0 : 50;
-            await env.DATABASE_V2.prepare("UPDATE jobs SET status=?,progress=?,result_json=?,updated_at=CURRENT_TIMESTAMP WHERE provider_job_id=?")
-              .bind(state, progress, JSON.stringify(b), providerId).run();
+            const job = await env.DATABASE_V2.prepare("SELECT * FROM jobs WHERE provider='luma' AND provider_job_id=? ORDER BY created_at DESC LIMIT 1").bind(providerId).first();
+            if (job) await applyNormalizedJob(env, job, normalizeProviderPayload("luma", b));
           }
           return json({ ok: true });
         } catch (error) {
