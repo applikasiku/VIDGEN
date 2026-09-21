@@ -93,9 +93,22 @@ async function ensureSchema(env) {
         FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
       );
 
+      CREATE TABLE IF NOT EXISTS assets (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'reference',
+        name TEXT NOT NULL,
+        mime_type TEXT NOT NULL,
+        r2_key TEXT NOT NULL UNIQUE,
+        size_bytes INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+
       CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id, created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_scenes_project ON scenes(project_id, scene_index);
       CREATE INDEX IF NOT EXISTS idx_jobs_project ON jobs(project_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_assets_user ON assets(user_id, created_at DESC);
     `;
     await env.DATABASE_V2.batch(schema.split(";").map(sql => sql.trim()).filter(Boolean).map(sql => env.DATABASE_V2.prepare(sql)));
     schemaReady = true;
@@ -124,15 +137,34 @@ function storyboardFrom(body) {
   const style = safeText(body.style || "cinematic", 80);
   const genre = safeText(body.genre || "music video", 120);
   const concept = safeText(body.concept || "cinematic performance and storytelling", 1000);
-  const labels = ["Intro", "Verse 1", "Build", "Chorus", "Verse 2", "Transition", "Bridge", "Final Chorus", "Outro"];
-  return Array.from({ length: count }, (_, i) => ({
-    id: uid("scn"),
-    index: i,
-    title: labels[Math.min(labels.length - 1, Math.floor(i * labels.length / count))],
-    start: i * duration,
-    duration,
-    prompt: `${concept}. ${labels[Math.min(labels.length - 1, Math.floor(i * labels.length / count))]}. ${genre}. ${style} music video, coherent character identity, consistent wardrobe, cinematic lighting, intentional camera movement, no text or watermark.`
-  }));
+  const mood = safeText(body.mood || "dynamic", 80);
+  const cameraPreference = safeText(body.camera || "mixed cinematic", 80);
+  const referenceName = safeText(body.referenceName || "", 180);
+  const beatSync = body.beatSync !== false;
+  const lyricSync = body.lyricSync !== false;
+  const consistency = body.consistency !== false;
+
+  const labels = ["Intro","Verse 1","Build","Chorus","Verse 2","Transition","Bridge","Final Chorus","Outro"];
+  const shots = ["wide establishing shot","medium performance shot","close-up portrait","tracking shot","low angle hero shot","over-the-shoulder shot","aerial or crane shot","intimate close-up"];
+  const motions = ["slow dolly in","smooth lateral tracking","gentle handheld movement","slow orbit","push-in on the beat","controlled pull-back","static composition with subject motion","cinematic pan"];
+  const lights = ["soft cinematic key light","neon rim light","golden hour glow","dramatic backlight","moody practical lighting","high contrast concert lighting","soft diffused daylight","volumetric atmospheric light"];
+
+  return Array.from({ length: count }, (_, i) => {
+    const progress = count <= 1 ? 0 : i / (count - 1);
+    const title = labels[Math.min(labels.length - 1, Math.floor(progress * labels.length))];
+    const shot = cameraPreference === "mixed cinematic" ? shots[i % shots.length] : cameraPreference;
+    const motion = motions[(i + Math.floor(count / 3)) % motions.length];
+    const lighting = lights[(i * 2) % lights.length];
+    const sync = [
+      beatSync ? "edit and camera movement synchronized to musical beat" : "",
+      lyricSync ? "visual storytelling follows the lyrical emotion" : "",
+      consistency ? "keep character identity, face, wardrobe and visual continuity consistent" : ""
+    ].filter(Boolean).join(", ");
+    const reference = referenceName ? `Use the selected reference image "${referenceName}" as visual identity/style guidance.` : "";
+    const energy = progress < .2 ? "introductory and atmospheric" : progress < .45 ? "building energy" : progress < .75 ? "high emotional or performance energy" : "strong closing payoff";
+    const prompt = `${concept}. ${title}. ${genre}. ${style} music video with ${mood} mood. ${shot}, ${motion}, ${lighting}. Scene energy: ${energy}. ${sync}. ${reference} cinematic composition, intentional subject movement, no text, no logo, no watermark.`.replace(/\s+/g, " ").trim();
+    return { id: uid("scn"), index: i, title, start: i * duration, duration, shot, motion, lighting, prompt };
+  });
 }
 
 async function createProviderTask(env, provider, scene, request) {
@@ -160,7 +192,7 @@ export default {
       return json({
         ok: true,
         app: env.APP_NAME || "VIDGEN",
-        version: env.APP_VERSION || "1.1.0",
+        version: env.APP_VERSION || "1.2.0",
         runtime: "cloudflare-workers",
         time: new Date().toISOString()
       });
@@ -192,11 +224,50 @@ export default {
         const drive = await driveStatus(env, session.id);
         const providers = providerCatalog(env);
         const projects = await env.DATABASE_V2.prepare("SELECT id,title,status,aspect_ratio,resolution,created_at FROM projects WHERE user_id=? ORDER BY created_at DESC LIMIT 12").bind(session.id).all();
-        return withSession(json({ mode: "cloudflare", providers, drive, projects: projects.results || [] }), session);
+        const assets = await env.DATABASE_V2.prepare("SELECT id,kind,name,mime_type,size_bytes,created_at FROM assets WHERE user_id=? ORDER BY created_at DESC LIMIT 60").bind(session.id).all();
+        return withSession(json({ mode: "cloudflare", providers, drive, projects: projects.results || [], assets: assets.results || [] }), session);
       }
       if (url.pathname === "/api/storyboard" && request.method === "POST") {
         const body = await bodyJson(request);
         return withSession(json({ scenes: storyboardFrom(body) }), session);
+      }
+      if (url.pathname === "/api/assets" && request.method === "GET") {
+        const rows = await env.DATABASE_V2.prepare("SELECT id,kind,name,mime_type,size_bytes,created_at FROM assets WHERE user_id=? ORDER BY created_at DESC LIMIT 60").bind(session.id).all();
+        return withSession(json({ assets: rows.results || [] }), session);
+      }
+      if (url.pathname === "/api/assets/upload" && request.method === "POST") {
+        const contentType = (request.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+        if (!["image/jpeg","image/png","image/webp"].includes(contentType)) throw Object.assign(new Error("Reference image harus JPG, PNG, atau WEBP."), { status: 415 });
+        const bytes = await request.arrayBuffer();
+        if (!bytes.byteLength) throw Object.assign(new Error("File kosong."), { status: 400 });
+        if (bytes.byteLength > 10 * 1024 * 1024) throw Object.assign(new Error("Ukuran reference image maksimal 10 MB."), { status: 413 });
+        const rawName = safeText(url.searchParams.get("name") || "reference-image", 180);
+        const name = rawName.replace(/[^a-zA-Z0-9._ -]/g, "-").replace(/\s+/g, " ").trim() || "reference-image";
+        const id = uid("ast");
+        const safeName = name.replace(/\s+/g, "-");
+        const key = `${session.id}/assets/${id}-${safeName}`;
+        await env.STORAGE_V2.put(key, bytes, { httpMetadata: { contentType } });
+        await env.DATABASE_V2.prepare("INSERT INTO assets (id,user_id,kind,name,mime_type,r2_key,size_bytes) VALUES (?,?,?,?,?,?,?)")
+          .bind(id, session.id, "reference", name, contentType, key, bytes.byteLength).run();
+        return withSession(json({ ok: true, asset: { id, kind: "reference", name, mime_type: contentType, size_bytes: bytes.byteLength, created_at: new Date().toISOString() } }, 201), session);
+      }
+      const assetMatch = url.pathname.match(/^\/api\/assets\/([^/]+)(?:\/(content))?$/);
+      if (assetMatch) {
+        const assetId = safeText(assetMatch[1], 120);
+        const asset = await env.DATABASE_V2.prepare("SELECT * FROM assets WHERE id=? AND user_id=?").bind(assetId, session.id).first();
+        if (!asset) return withSession(json({ error: "Aset tidak ditemukan." }, 404), session);
+        if (assetMatch[2] === "content" && request.method === "GET") {
+          const object = await env.STORAGE_V2.get(asset.r2_key);
+          if (!object) return withSession(json({ error: "File aset tidak ditemukan di R2." }, 404), session);
+          const headers = new Headers({ "content-type": asset.mime_type || "application/octet-stream", "cache-control": "private, max-age=300" });
+          if (object.etag) headers.set("etag", object.etag);
+          return withSession(new Response(object.body, { headers }), session);
+        }
+        if (!assetMatch[2] && request.method === "DELETE") {
+          await env.STORAGE_V2.delete(asset.r2_key);
+          await env.DATABASE_V2.prepare("DELETE FROM assets WHERE id=? AND user_id=?").bind(assetId, session.id).run();
+          return withSession(json({ ok: true }), session);
+        }
       }
       if (url.pathname === "/api/projects" && request.method === "POST") {
         const b = await bodyJson(request);
