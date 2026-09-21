@@ -43,17 +43,17 @@ export function normalizeProviderPayload(provider,data={}){
       raw:data
     };
   }
-  if(provider==="veo"){
+  if(provider==="google"){
     if(!data.done) return {status:"running",progress:55,outputUrl:null,outputBase64:null,mimeType:"video/mp4",error:null,raw:data};
     if(data.error) return {status:"failed",progress:0,error:data.error?.message||JSON.stringify(data.error),raw:data};
-    const video=data.response?.videos?.[0]||null;
-    if(!video) return {status:"failed",progress:0,error:(data.response?.raiMediaFilteredReasons||[]).join(", ")||"Veo selesai tanpa output video.",raw:data};
+    const sample=data.response?.generateVideoResponse?.generatedSamples?.[0]||null;
+    const video=sample?.video||null;
+    if(!video) return {status:"failed",progress:0,error:"Google Veo selesai tanpa output video.",raw:data};
     return {
       status:"completed",
       progress:100,
-      outputUrl:video.gcsUri?.startsWith("http")?video.gcsUri:null,
-      outputGcsUri:video.gcsUri||null,
-      outputBase64:video.bytesBase64Encoded||null,
+      outputUrl:video.uri||null,
+      outputBase64:video.videoBytes||null,
       mimeType:video.mimeType||"video/mp4",
       error:null,
       raw:data
@@ -86,14 +86,10 @@ export async function pollProvider(env,provider,taskId){
     res=await fetch(`${seedanceTasksBase(env)}/${encodeURIComponent(taskId)}`,{
       headers:{authorization:`Bearer ${env.SEEDANCE_API_KEY}`,accept:"application/json"}
     });
-  }else if(provider==="veo"){
-    const location=env.VEO_LOCATION||"us-central1";
-    const model=env.VEO_MODEL||"veo-3.1-generate-001";
-    const endpoint=`https://${location}-aiplatform.googleapis.com/v1/projects/${env.VEO_PROJECT_ID}/locations/${location}/publishers/google/models/${model}:fetchPredictOperation`;
-    res=await fetch(endpoint,{
-      method:"POST",
-      headers:{authorization:`Bearer ${env.VEO_ACCESS_TOKEN}`,"content-type":"application/json"},
-      body:JSON.stringify({operationName:taskId})
+  }else if(provider==="google"){
+    const base=(env.GOOGLE_AI_API_BASE||"https://generativelanguage.googleapis.com/v1beta").replace(/\/$/,"");
+    res=await fetch(`${base}/${taskId}`,{
+      headers:{"x-goog-api-key":env.GOOGLE_AI_API_KEY,accept:"application/json"}
     });
   }else{
     return {status:"failed",progress:0,error:`Provider tidak didukung: ${provider}`};
