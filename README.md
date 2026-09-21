@@ -1,4 +1,4 @@
-# VIDGEN V1.4
+# VIDGEN V1.4.1
 
 VIDGEN adalah **AI Multi-Vendor Music Video Generator** berbasis Cloudflare Workers + Static Assets.
 
@@ -13,7 +13,7 @@ Repository ini sudah disiapkan untuk deployment Cloudflare dengan:
 - D1 migrations otomatis sesudah Worker berhasil dipublish.
 - Health check publik di `/api/health`.
 - Google Drive OAuth + resumable archive.
-- Adapter Seedance, Google Veo, Runway, dan Luma.
+- Adapter Seedance, Google AI (Veo 3.1 + Omni Flash), Runway, dan Luma.
 - API keys tetap di Cloudflare Secrets, tidak disimpan di GitHub.
 
 ## Arsitektur
@@ -26,7 +26,7 @@ Cloudflare Workers
 ├── Worker API
 ├── D1 (DB)
 ├── R2 (MEDIA)
-├── Seedance / Veo / Runway / Luma
+├── Seedance / Google AI / Runway / Luma
 └── Google Drive archive
 ```
 
@@ -99,8 +99,7 @@ npx wrangler secret put RUNWAY_API_KEY
 
 npx wrangler secret put LUMA_API_KEY
 
-npx wrangler secret put VEO_ACCESS_TOKEN
-npx wrangler secret put VEO_PROJECT_ID
+npx wrangler secret put GOOGLE_AI_API_KEY
 ```
 
 Provider tanpa credential akan tetap tampil sebagai **demo/fallback mode**.
@@ -114,7 +113,8 @@ Base URL/model non-secret dikonfigurasi di `wrangler.jsonc`:
 - `RUNWAY_API_BASE` → `https://api.dev.runwayml.com/v1`.
 - `RUNWAY_MODEL` → `gen4.5`.
 - `LUMA_MODEL` → `ray-2`.
-- `VEO_MODEL` / `VEO_LOCATION` → Vertex AI Veo.
+- `GOOGLE_AI_API_BASE` → Gemini Developer API.
+- `GOOGLE_AI_DEFAULT_MODEL` → model Google default untuk project baru.
 
 ## Google Drive
 
@@ -241,3 +241,21 @@ VIDGEN 1.4.0 memperkenalkan **Real Render Pipeline**:
 - PWA, frontend, backend, dan konfigurasi Worker disinkronkan ke 1.4.0.
 
 Catatan produksi: credential provider tetap harus dikonfigurasi di Cloudflare Secrets. Provider yang belum memiliki credential akan tetap menggunakan demo mode dan tidak menghasilkan file video nyata.
+
+
+## Rilis 1.4.1
+
+VIDGEN 1.4.1 menambahkan **Google Multi-Model Router** melalui Gemini Developer API:
+
+- Google AI memakai satu Cloudflare Secret: `GOOGLE_AI_API_KEY`.
+- Model tersedia: `veo-3.1-generate-preview` (Quality), `veo-3.1-fast-generate-preview` (Fast), `veo-3.1-lite-generate-preview` (Lite), dan `gemini-omni-1.1-flash` (Omni 1.1 Flash).
+- Veo memakai long-running operation dan dipoll sampai selesai.
+- Omni Flash memakai Interactions API dan output video base64 langsung diarsipkan ke R2.
+- Reference image JPEG/PNG dapat dikirim ke Google sebagai image conditioning/reference input.
+- Pilihan model Google disimpan per project di D1 melalui kolom `google_model` dan dipulihkan ketika project dibuka kembali.
+- Scene Inspector dapat memilih model Google saat regenerate satu scene.
+- Auto Router sekarang memakai provider `google` sebagai bagian dari routing dan fallback.
+- Output Google yang selesai tetap diarsipkan ke Cloudflare R2.
+- Perbaikan selector frontend untuk daftar project, aset, scene, vendor, template, dan navigasi.
+
+Tambahkan `GOOGLE_AI_API_KEY` melalui Cloudflare Worker → Settings → Variables and Secrets sebagai **Secret**, bukan build variable.
