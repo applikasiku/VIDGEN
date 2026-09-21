@@ -15,7 +15,23 @@ function updateStats(){
 }
 async function bootstrap(){
   try{const data=await api('/api/bootstrap');state.api=true;state.providers=data.providers||[];state.projects=data.projects||[];state.assets=data.assets||[];state.drive=data.drive||{connected:false};$('#cloudState').className='cloud-state ok';$('#cloudState').innerHTML='<span></span><b>Cloudflare API</b>';$('#backendMode').textContent='Cloudflare Worker';renderProviders();renderProjects();renderAssets();renderDrive();renderHistory();}
-  catch(e){state.api=false;state.backendError=true;state.providers=['seedance','veo','runway','luma'].map(id=>({id,name:id[0].toUpperCase()+id.slice(1),configured:false,strengths:['demo mode']}));$('#cloudState').className='cloud-state demo';$('#cloudState').innerHTML='<span></span><b>Server tidak tersedia</b>';$('#backendMode').textContent='Koneksi gagal — muat ulang untuk mencoba lagi';$('#generateBtn').disabled=true;toast('Tidak dapat terhubung ke server. Muat ulang untuk mencoba lagi.');renderProviders();}
+  catch(e){
+    state.api=false;state.backendError=true;state.backendErrorMessage=e.message||String(e);
+    try{
+      const ps=await api('/api/provider-status');
+      state.providers=ps.providers||[];
+      let diag=null;try{diag=await api('/api/diagnostics')}catch{}
+      $('#cloudState').className='cloud-state demo';
+      $('#cloudState').innerHTML='<span></span><b>API aktif • Bootstrap gagal</b>';
+      $('#backendMode').textContent=diag?.checks?.d1==='error'?'Worker aktif • D1 bermasalah':'Worker aktif • bootstrap bermasalah';
+      const notice=$('#notice span');if(notice)notice.textContent='Worker VIDGEN aktif, tetapi bootstrap database gagal. Status API vendor di bawah tetap dibaca langsung dari Cloudflare Secrets.';
+      toast(diag?.databaseError?'D1 error terdeteksi. Status API key tetap berhasil dibaca.':'Bootstrap gagal. Status API key tetap berhasil dibaca.');
+    }catch(statusError){
+      state.providers=['seedance','veo','runway','luma'].map(id=>({id,name:id[0].toUpperCase()+id.slice(1),configured:false,strengths:['status tidak dapat dibaca']}));
+      $('#cloudState').className='cloud-state demo';$('#cloudState').innerHTML='<span></span><b>Server tidak tersedia</b>';$('#backendMode').textContent='Worker/API tidak dapat dihubungi';toast('Tidak dapat terhubung ke Worker VIDGEN.');
+    }
+    $('#generateBtn').disabled=true;renderProviders();
+  }
   updateStats();
 }
 function renderProviders(){const box=$('#providerGrid');box.innerHTML=state.providers.map(p=>`<div class="provider-card"><b>${esc(p.name)}</b><small>Model: ${esc(p.model||'configurable')}</small><small>${esc((p.strengths||[]).join(' • '))}</small><span class="status ${p.configured?'ok':''}">${p.configured?'API configured':'Demo / belum ada key'}</span></div>`).join('')||'<div class="empty">Provider belum tersedia.</div>'}
