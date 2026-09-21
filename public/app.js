@@ -35,7 +35,7 @@ function closeModal(){$('#modal').classList.remove('show');state.editing=null}
 function renderJobs(){const box=$('#jobList');if(!state.jobs.length){box.innerHTML='<div class="empty">Belum ada job.</div>';updateStats();return}box.innerHTML=state.jobs.map((j,i)=>`<div class="job"><div class="job-head"><b>Scene ${i+1} • ${esc(j.provider||'auto')}</b><span>${esc(j.error?'Gagal':j.demo?'Demo':j.status||'Submitted')}</span></div><div class="progress"><i style="width:${j.error?5:j.demo?32:12}%"></i></div></div>`).join('');updateStats()}
 async function saveProject(){
   const p={title:$('#projectTitle').value||'Videoclip Baru',genre:$('#genreInput').value,concept:$('#conceptInput').value,duration:state.audioDuration,style:state.style,aspectRatio:state.ratio,resolution:state.resolution,vendor:state.vendor,priority:state.priority,saveToDrive:$('#driveSaveToggle').checked,scenes:state.scenes};
-  if(!state.api)return `demo_${Date.now()}`;const r=await api('/api/projects',{method:'POST',body:JSON.stringify(p)});state.projects.unshift({id:r.id,title:p.title,status:'draft',aspect_ratio:p.aspectRatio,resolution:p.resolution,created_at:new Date().toISOString()});renderProjects();updateStats();return r.id
+  if(!state.api)return `demo_${Date.now()}`;const r=await api('/api/projects',{method:'POST',body:JSON.stringify(p)});state.projects.unshift({id:r.id,title:p.title,status:'draft',aspect_ratio:p.aspectRatio,resolution:p.resolution,created_at:new Date().toISOString()});renderProjects();if(typeof renderHistory==='function')renderHistory();updateStats();return r.id
 }
 async function generate(){if(!state.api)return toast('Server belum terhubung. Muat ulang untuk mencoba lagi.');if(!state.scenes.length)return toast('Buat storyboard terlebih dahulu.');$('#generateBtn').disabled=true;$('#generateBtn').textContent='Menyiapkan render…';try{state.currentProjectId=await saveProject();if(state.api){const r=await api('/api/generate',{method:'POST',body:JSON.stringify({projectId:state.currentProjectId})});state.jobs=r.jobs||[]}else{const route={quality:['seedance','veo','runway','luma'],balanced:['seedance','runway','veo','luma'],speed:['runway','luma','seedance','veo'],cost:['luma','seedance','runway','veo']}[state.priority];state.jobs=state.scenes.map((s,i)=>({provider:state.vendor==='auto'?route[i%route.length]:state.vendor,demo:true,status:'demo'}))}renderJobs();setStep(4);toast(state.jobs.every(j=>j.demo)?'Simulasi dibuat. Belum ada video yang dihasilkan.':state.jobs.every(j=>j.error)?'Semua proses gagal. Periksa konfigurasi provider.':'Permintaan video dikirim.')}catch(e){toast(e.message)}finally{$('#generateBtn').disabled=false;$('#generateBtn').textContent='🚀 Generate Music Video'}}
 async function connectDrive(){if(!state.api)return toast('Deploy Worker terlebih dahulu untuk OAuth Google Drive.');if(state.drive.connected)return toast('Google Drive sudah terhubung.');try{const r=await api('/api/drive/connect');location.href=r.authUrl}catch(e){toast(e.message)}}
@@ -53,6 +53,41 @@ $('#resolution').onchange=e=>state.resolution=e.target.value;$('#sceneDuration')
 $('#generateBtn').onclick=generate;$('#connectDrive').onclick=connectDrive;$('#driveQuick').onclick=()=>{$('[data-tab="storage"]').click()};$('#exportBtn').onclick=exportProject;$('#dismissNotice').onclick=()=>$('#notice').remove();
 $('#modalX').onclick=closeModal;$('#modal').onclick=e=>{if(e.target.id==='modal')closeModal()};$('#saveScene').onclick=()=>{const s=state.scenes.find(x=>x.id===state.editing);if(!s)return;s.title=$('#modalSceneTitle').value.trim()||s.title;s.prompt=$('#modalPrompt').value.trim()||s.prompt;renderScenes();closeModal();toast('Scene diperbarui.')};$('#deleteScene').onclick=()=>{state.scenes=state.scenes.filter(x=>x.id!==state.editing).map((s,i)=>({...s,index:i,start:i*state.duration}));renderScenes();closeModal();toast('Scene dihapus.')};
 $$('.nav-item').forEach(b=>b.onclick=()=>{$$('.nav-item').forEach(x=>x.classList.remove('active'));b.classList.add('active');$$('.view').forEach(v=>v.classList.remove('active'));$(`#view-${b.dataset.tab}`).classList.add('active');window.scrollTo({top:0,behavior:'smooth'})});
+// VIDGEN extra UI features 2026-09-22
+const DEFAULT_PREFS={ratio:'16:9',resolution:'1080p',duration:8,vendor:'auto',drive:true};
+function readPrefs(){try{return {...DEFAULT_PREFS,...JSON.parse(localStorage.getItem('vidgen:prefs')||'{}')}}catch{return {...DEFAULT_PREFS}}}
+function applyPrefs(p=readPrefs()){
+  state.ratio=p.ratio; state.resolution=p.resolution; state.duration=Number(p.duration)||8; state.vendor=p.vendor||'auto';
+  const sr=$('#settingRatio'),sres=$('#settingResolution'),sd=$('#settingDuration'),sv=$('#settingVendor'),sg=$('#settingDrive');
+  if(sr)sr.value=state.ratio;if(sres)sres.value=state.resolution;if(sd)sd.value=String(state.duration);if(sv)sv.value=state.vendor;if(sg)sg.checked=p.drive!==false;
+  const r=$('#resolution'),d=$('#sceneDuration'),drive=$('#driveSaveToggle');if(r)r.value=state.resolution;if(d)d.value=String(state.duration);if(drive)drive.checked=p.drive!==false;
+  $('#ratioGroup button').forEach(b=>b.classList.toggle('active',b.dataset.value===state.ratio));
+  $('#vendorList .vendor').forEach(b=>b.classList.toggle('active',b.dataset.vendor===state.vendor));
+  updateStats();
+}
+function renderHistory(){
+  const box=$('#historyList');if(!box)return;
+  const rows=[...(state.projects||[])];
+  box.innerHTML=rows.length?rows.map(p=>`<div class="history-row"><div class="history-icon">▶</div><div><b>${esc(p.title||'Untitled Project')}</b><small>${esc(p.aspect_ratio||state.ratio)} • ${esc(p.resolution||state.resolution)} • ${esc(p.status||'draft')}</small></div><em>${p.created_at?new Date(p.created_at).toLocaleString('id-ID'):'Project'}</em></div>`).join(''):'<div class="empty">Belum ada riwayat proyek.</div>';
+}
+$('.template-preset').forEach(b=>b.onclick=()=>{
+  $('#genreInput').value=b.dataset.genre||'';$('#conceptInput').value=b.dataset.concept||'';
+  state.style=b.dataset.style||'cinematic';state.ratio=b.dataset.ratio||'16:9';state.duration=Number(b.dataset.duration||8);
+  $('#styleGrid .style').forEach(x=>x.classList.toggle('active',x.dataset.style===state.style));
+  $('#ratioGroup button').forEach(x=>x.classList.toggle('active',x.dataset.value===state.ratio));
+  $('#sceneDuration').value=String(state.duration);
+  $('[data-tab="create"]').click();toast('Template diterapkan.');
+});
+$('.prompt-preset').forEach(b=>b.onclick=()=>{const target=$('#conceptInput');target.value=(target.value?target.value+' ':'')+(b.dataset.prompt||'');$('[data-tab="create"]').click();target.focus();toast('Prompt ditambahkan ke konsep video.')});
+$('#refreshHistory')?.addEventListener('click',()=>{renderHistory();toast('Riwayat diperbarui.')});
+$('#saveSettings')?.addEventListener('click',()=>{
+  const p={ratio:$('#settingRatio').value,resolution:$('#settingResolution').value,duration:Number($('#settingDuration').value),vendor:$('#settingVendor').value,drive:$('#settingDrive').checked};
+  localStorage.setItem('vidgen:prefs',JSON.stringify(p));applyPrefs(p);toast('Pengaturan disimpan.');
+});
+$('#resetSettings')?.addEventListener('click',()=>{localStorage.removeItem('vidgen:prefs');applyPrefs(DEFAULT_PREFS);toast('Pengaturan dikembalikan ke default.')});
+applyPrefs();
+renderHistory();
+
 if(new URLSearchParams(location.search).get('drive')==='connected'){toast('Google Drive berhasil terhubung.');history.replaceState({},'',location.pathname)}
 if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
 bootstrap();renderScenes();renderJobs();
