@@ -508,3 +508,33 @@ textarea{min-height:96px;padding-top:14px;padding-bottom:14px}
 #audioMeta{transition:.2s}
 #saveDraftBtn{border-color:#3d4b69}
 @media(max-width:760px){.project-actions{gap:6px}}
+
+/* VIDGEN 1.4 REAL RENDER PIPELINE */
+.scene-titleline{display:flex;align-items:center;gap:8px;min-width:0}
+.scene-titleline b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.scene-state,.scene-status{display:inline-flex;align-items:center;justify-content:center;min-height:22px;padding:4px 8px;border:1px solid #33405c;border-radius:999px;background:#141b2c;color:#95a2ba;font-size:8px;text-transform:uppercase;letter-spacing:.06em}
+.scene-completed .scene-state,.status-completed{border-color:#1f6b55;background:#0f3028;color:#61e0ae}
+.scene-running .scene-state,.scene-queued .scene-state,.scene-submitted .scene-state,.status-running,.status-queued,.status-submitted{border-color:#6351a8;background:#231b48;color:#c1adff}
+.scene-failed .scene-state,.status-failed{border-color:#713543;background:#321720;color:#ff879d}
+.scene-demo .scene-state,.status-demo{border-color:#775b29;background:#332711;color:#f2c96b}
+.scene-actions{display:flex;gap:6px;align-items:center}
+.scene-actions button{width:32px;height:32px;border:1px solid #2e3952;border-radius:9px;background:#111829;color:#b6c1d5;cursor:pointer}
+.scene-actions button:hover{border-color:#7445e8;color:#fff}
+.timeline-item.has-output{border-color:#285f50}
+.timeline-item.has-output .timeline-thumb{display:grid;place-items:center;color:#66e2b2;font-size:18px}
+.scene-inspector{width:min(760px,100%)}
+.inspector-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-right:38px}
+.inspector-head h2{margin:6px 0 8px}
+.scene-video{width:100%;aspect-ratio:16/9;border:1px solid #2d3952;border-radius:14px;background:#05070c;object-fit:contain;margin:6px 0 10px}
+.inspector-router{margin-top:12px}
+#regenerateScene{border-color:#6040a8}
+.job-completed .progress i{width:100%!important}
+.job-completed .job-head span{color:#5fe0ae}
+.job-failed .job-head span{color:#ff879d}
+.job-running .job-head span,.job-queued .job-head span,.job-submitted .job-head span{color:#b39dff}
+@media(max-width:760px){
+  .scene-row{grid-template-columns:34px minmax(0,1fr);gap:10px}
+  .scene-actions{grid-column:2;justify-content:flex-start}
+  .scene-inspector{max-height:calc(100dvh - 24px);overflow:auto}
+  .inspector-head{align-items:flex-start}
+}
