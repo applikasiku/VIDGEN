@@ -547,3 +547,38 @@ textarea{min-height:96px;padding-top:14px;padding-bottom:14px}
 .google-model-panel small{display:block;margin-top:7px;color:#7d89a0;font-size:9px;line-height:1.45}
 .vendor[data-vendor="google"] em{font-size:8px}
 @media(max-width:760px){.google-model-panel{padding:11px}}
+
+/* VIDGEN 1.4.2 REFERENCE + FONT AWESOME */
+.nav-item>i,.kpi-icon i,button i,.vendor-logo i,.music-orb i,.history-icon i,.gdrive-logo i,.provider-card-icon i{pointer-events:none}
+.nav-item>i{width:19px;flex:0 0 19px;text-align:center;font-size:14px}
+.brand-icon{display:grid;place-items:center}.brand-icon i{font-size:11px}
+.kpi-icon,.music-orb,.vendor-logo,.gdrive-logo,.provider-card-icon{display:grid;place-items:center}
+.kpi-icon i{font-size:17px}.music-orb i{font-size:18px}.vendor-logo i{font-size:15px}.gdrive-logo i{font-size:20px}
+button{gap:7px}button i{display:inline-flex;align-items:center;justify-content:center}
+.style span{display:grid;place-items:center}.style span i{font-size:15px}
+.feature-card>i{font-size:22px;margin-bottom:8px}
+.provider-card-head{display:flex;align-items:center;gap:10px}
+.provider-card-icon{width:34px;height:34px;border:1px solid #2d3952;border-radius:11px;background:#0a0f1c;color:#aab7cc}
+.reference-manager{display:grid;grid-template-columns:72px minmax(0,1fr) auto;gap:13px;align-items:center;margin:14px 0;padding:12px;border:1px solid rgba(116,69,232,.35);border-radius:16px;background:linear-gradient(135deg,rgba(116,69,232,.08),rgba(42,128,255,.04))}
+.reference-preview{width:72px;height:72px;display:grid;place-items:center;border:1px dashed #405071;border-radius:13px;background:#080d18;color:#66738d;overflow:hidden}
+.reference-preview>i{font-size:24px}.reference-preview.has-image{border-style:solid;border-color:#6646d9}
+.reference-preview img{width:100%;height:100%;object-fit:cover;display:block}
+.reference-copy{min-width:0}.reference-copy small{display:block;color:#7e74a9;font-size:8px;font-weight:800;letter-spacing:.12em}
+.reference-copy b{display:block;margin-top:4px;font-size:12px;color:#eef2ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.reference-copy span{display:block;margin-top:5px;font-size:9px;color:#7f8ba3;line-height:1.45}
+.reference-actions{display:flex;align-items:center;gap:7px}.reference-actions button{min-height:36px;padding:8px 10px;font-size:10px}
+.asset-card.selected{position:relative;border-color:#7d4aff;box-shadow:0 0 0 1px rgba(125,74,255,.4)}
+.asset-card.selected::after{content:"REFERENCE AKTIF";position:absolute;top:8px;left:8px;padding:5px 7px;border-radius:999px;background:rgba(29,20,59,.88);border:1px solid rgba(139,92,246,.65);color:#d8caff;font-size:7px;font-weight:800;letter-spacing:.06em}
+.asset-actions .danger-text{flex:0 0 34px;display:grid;place-items:center}
+.empty i{margin-right:6px}
+.google-model-panel select{cursor:pointer}
+@media(max-width:760px){
+  .reference-manager{grid-template-columns:62px minmax(0,1fr)}
+  .reference-preview{width:62px;height:62px}
+  .reference-actions{grid-column:1/-1;width:100%}
+  .reference-actions .secondary{flex:1}
+}
+@media(max-width:430px){
+  .reference-manager{grid-template-columns:54px minmax(0,1fr);padding:10px}
+  .reference-preview{width:54px;height:54px}
+}
