@@ -1,4 +1,4 @@
-# VIDGEN V1.4.4
+# VIDGEN V1.4.5
 
 VIDGEN adalah **AI Multi-Vendor Music Video Generator** berbasis Cloudflare Workers + Static Assets.
 
@@ -299,3 +299,46 @@ VIDGEN 1.4.4 menambahkan dual appearance mode:
 - Pilihan tema tersimpan di localStorage dan dipulihkan sebelum stylesheet dirender untuk mengurangi flash tema yang salah.
 - Browser theme-color ikut berubah antara putih dan gelap.
 - Seluruh sidebar, card, form, vendor, reference manager, render queue, scene inspector, modal, dan tombol memiliki styling untuk kedua mode.
+
+
+## Google Drive production setup
+
+Google Drive memakai OAuth 2.0 Web Application dan scope terbatas `drive.file`.
+
+1. Aktifkan **Google Drive API** pada project Google Cloud.
+2. Konfigurasi OAuth consent screen.
+3. Buat OAuth Client dengan application type **Web application**.
+4. Tambahkan Authorized JavaScript origin:
+
+```text
+https://vidgen.purbalink.web.id
+```
+
+5. Tambahkan Authorized redirect URI **persis**:
+
+```text
+https://vidgen.purbalink.web.id/oauth/google/callback
+```
+
+6. Tambahkan ke Cloudflare Worker → Settings → Variables and Secrets sebagai **Secret**:
+
+```text
+GOOGLE_CLIENT_ID
+GOOGLE_CLIENT_SECRET
+SESSION_SECRET
+```
+
+`SESSION_SECRET` harus string acak panjang dan jangan disimpan di repository.
+
+Setelah secret dideploy, klik **Hubungkan Google Drive** di VIDGEN. Tombol **Test** membuat/memeriksa folder `/VIDGEN`. Output scene yang sudah selesai dapat diarsipkan ke `/VIDGEN/<Nama Project>/`. Opsi **Simpan ke Google Drive** akan mencoba mengarsipkan scene selesai secara otomatis setelah render tidak lagi aktif.
+
+
+## Rilis 1.4.5
+
+- Google Drive OAuth diperkuat dengan pemeriksaan konfigurasi credential dan SESSION_SECRET.
+- Endpoint status, test, disconnect, dan archive-scene ditambahkan.
+- Output scene R2 kini diverifikasi kepemilikannya melalui D1 sehingga key `renders/...` dapat diarsipkan dengan aman.
+- Folder Drive menggunakan `/VIDGEN/<Nama Project>/`.
+- Scene menyimpan `drive_file_id` dan `drive_web_view_link` agar upload idempotent dan tidak menggandakan file.
+- Frontend menampilkan status OAuth, jumlah scene terarsip, tombol Test, Arsip Scene, dan Putuskan.
+- Auto archive berjalan setelah render selesai jika opsi Simpan ke Google Drive aktif.
