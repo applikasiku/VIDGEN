@@ -382,3 +382,71 @@ textarea{min-height:96px;padding-top:14px;padding-bottom:14px}
   .settings-actions{flex-direction:column}
   .settings-actions button{width:100%}
 }
+
+/* HOTFIX FIXED SIDEBAR GRID COLLAPSE 2026-09-22 */
+
+/*
+ * Sidebar is fixed and therefore no longer participates in CSS Grid.
+ * Force the application shell to block layout so <main> cannot be
+ * auto-placed into the former 240px sidebar grid column.
+ */
+@media(min-width:761px){
+  .shell{
+    display:block !important;
+    width:100% !important;
+    max-width:100% !important;
+    min-height:100vh;
+    overflow:visible
+  }
+
+  .sidebar{
+    position:fixed !important;
+    top:0;
+    bottom:0;
+    left:0;
+    width:240px !important;
+    height:100dvh;
+    z-index:100;
+    overflow:hidden
+  }
+
+  .main{
+    display:block;
+    margin:0 0 0 240px !important;
+    width:auto !important;
+    max-width:none !important;
+    min-width:0;
+    min-height:100vh;
+    padding-left:clamp(20px,2.2vw,36px);
+    padding-right:clamp(20px,2.2vw,36px)
+  }
+
+  .main>*{min-width:0;max-width:100%}
+  .topbar,.notice,.kpis,.wizard,.view,.workspace,.bottom-grid{width:100%;max-width:100%}
+}
+
+/* Collapsed fixed sidebar on medium screens */
+@media(min-width:761px) and (max-width:1180px){
+  .sidebar{width:82px !important}
+  .main{
+    margin-left:82px !important;
+    width:auto !important;
+    padding-left:20px;
+    padding-right:20px
+  }
+}
+
+/* Restore normal document flow on mobile; nav remains fixed at the bottom. */
+@media(max-width:760px){
+  .shell{display:block !important;width:100% !important;max-width:100% !important}
+  .main{
+    margin-left:0 !important;
+    width:100% !important;
+    max-width:100% !important
+  }
+}
+
+/* Safety against accidental narrow-column inheritance */
+@media(min-width:1181px){
+  .workspace{grid-template-columns:minmax(0,1fr) minmax(330px,380px) !important}
+}
