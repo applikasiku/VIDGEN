@@ -1,4 +1,4 @@
-const CACHE='vidgen-sidebar-features-20260922';
+const CACHE='vidgen-sidebar-hotfix-20260922-1';
 const CORE=['/','/styles.css','/app.js','/manifest.webmanifest','/icons/icon.svg'];
 self.addEventListener('install',e=>e.waitUntil(Promise.all([caches.open(CACHE).then(c=>c.addAll(CORE)),self.skipWaiting()])));
 self.addEventListener('activate',e=>e.waitUntil(Promise.all([caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))),self.clients.claim()])));
