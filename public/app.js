@@ -93,10 +93,10 @@ function syncGoogleModelVisibility(){
   const setting=$('#settingGoogleModel');if(setting)setting.value=state.googleModel;
 }
 function setEditorControls(){
-  $$$('#styleGrid .style').forEach(x=>x.classList.toggle('active',x.dataset.style===state.style));
-  $$$('#ratioGroup button').forEach(x=>x.classList.toggle('active',x.dataset.value===state.ratio));
-  $$$('#priorityGroup button').forEach(x=>x.classList.toggle('active',x.dataset.value===state.priority));
-  $$$('#vendorList .vendor').forEach(x=>x.classList.toggle('active',x.dataset.vendor===state.vendor));
+  $$('#styleGrid .style').forEach(x=>x.classList.toggle('active',x.dataset.style===state.style));
+  $$('#ratioGroup button').forEach(x=>x.classList.toggle('active',x.dataset.value===state.ratio));
+  $$('#priorityGroup button').forEach(x=>x.classList.toggle('active',x.dataset.value===state.priority));
+  $$('#vendorList .vendor').forEach(x=>x.classList.toggle('active',x.dataset.vendor===state.vendor));
   $('#resolution').value=state.resolution;$('#sceneDuration').value=String(state.duration);
   syncGoogleModelVisibility();renderAssets();updateStats();
 }
@@ -264,7 +264,7 @@ function applyPrefs(p=readPrefs()){
   if(sr)sr.value=state.ratio;if(sres)sres.value=state.resolution;if(sd)sd.value=String(state.duration);if(sv)sv.value=state.vendor;if(sgm)sgm.value=state.googleModel;if(sg)sg.checked=p.drive!==false;
   const r=$('#resolution'),d=$('#sceneDuration'),drive=$('#driveSaveToggle');if(r)r.value=state.resolution;if(d)d.value=String(state.duration);if(drive)drive.checked=p.drive!==false;
   $$('#ratioGroup button').forEach(b=>b.classList.toggle('active',b.dataset.value===state.ratio));
-  $$$('#vendorList .vendor').forEach(b=>b.classList.toggle('active',b.dataset.vendor===state.vendor));
+  $$('#vendorList .vendor').forEach(b=>b.classList.toggle('active',b.dataset.vendor===state.vendor));
   syncGoogleModelVisibility();updateStats();
 }
 function renderHistory(){
