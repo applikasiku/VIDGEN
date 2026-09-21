@@ -1,4 +1,4 @@
-# VIDGEN V1.4.3
+# VIDGEN V1.4.4
 
 VIDGEN adalah **AI Multi-Vendor Music Video Generator** berbasis Cloudflare Workers + Static Assets.
 
@@ -287,3 +287,15 @@ Perbaikan stabilitas render produksi:
 - Error provider disimpan dan ditampilkan dalam bentuk ringkas; detail mentah tetap tersedia pada title/diagnostic data.
 - Render Queue menampilkan job terbaru per scene sehingga retry/fallback lama tidak memenuhi layar.
 - Pipeline polling juga memakai circuit breaker agar provider gagal tidak dipanggil berulang dalam satu Worker invocation.
+
+
+## Rilis 1.4.4
+
+VIDGEN 1.4.4 menambahkan dual appearance mode:
+
+- Mode Terang biru-putih dan Mode Gelap biru-navy.
+- Tombol toggle tema di header dengan ikon bulan/matahari.
+- Pilihan tema tersedia di Pengaturan VIDGEN.
+- Pilihan tema tersimpan di localStorage dan dipulihkan sebelum stylesheet dirender untuk mengurangi flash tema yang salah.
+- Browser theme-color ikut berubah antara putih dan gelap.
+- Seluruh sidebar, card, form, vendor, reference manager, render queue, scene inspector, modal, dan tombol memiliki styling untuk kedua mode.
