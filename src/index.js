@@ -169,6 +169,7 @@ function storyboardFrom(body) {
   const mood = safeText(body.mood || "dynamic", 80);
   const cameraPreference = safeText(body.camera || "mixed cinematic", 80);
   const referenceName = safeText(body.referenceName || "", 180);
+  const hasReference = body.hasReference === true || Boolean(referenceName);
   const beatSync = body.beatSync !== false;
   const lyricSync = body.lyricSync !== false;
   const consistency = body.consistency !== false;
@@ -189,7 +190,7 @@ function storyboardFrom(body) {
       lyricSync ? "visual storytelling follows the lyrical emotion" : "",
       consistency ? "keep character identity, face, wardrobe and visual continuity consistent" : ""
     ].filter(Boolean).join(", ");
-    const reference = referenceName ? `Use the selected reference image "${referenceName}" as visual identity/style guidance.` : "";
+    const reference = hasReference ? `Use the selected reference image${referenceName ? ` "${referenceName}"` : ""} as visual identity, face, wardrobe, color palette and style guidance. Preserve strong visual continuity between scenes.` : "";
     const energy = progress < .2 ? "introductory and atmospheric" : progress < .45 ? "building energy" : progress < .75 ? "high emotional or performance energy" : "strong closing payoff";
     const prompt = `${concept}. ${title}. ${genre}. ${style} music video with ${mood} mood. ${shot}, ${motion}, ${lighting}. Scene energy: ${energy}. ${sync}. ${reference} cinematic composition, intentional subject movement, no text, no logo, no watermark.`.replace(/\s+/g, " ").trim();
     return { id: uid("scn"), index: i, title, start: i * duration, duration, shot, motion, lighting, prompt };
@@ -224,7 +225,7 @@ async function prepareReference(env, projectId, userId, origin) {
   ).bind(token, userId, asset.r2_key, asset.mime_type).run();
 
   let referenceBase64 = null;
-  if (["image/jpeg","image/png"].includes(asset.mime_type) && Number(asset.size_bytes || 0) <= 8 * 1024 * 1024) {
+  if (["image/jpeg","image/png","image/webp"].includes(asset.mime_type) && Number(asset.size_bytes || 0) <= 8 * 1024 * 1024) {
     const object = await env.STORAGE_V2.get(asset.r2_key);
     if (object) referenceBase64 = bytesToBase64(await object.arrayBuffer());
   }
@@ -232,6 +233,7 @@ async function prepareReference(env, projectId, userId, origin) {
     assetId: asset.id,
     name: asset.name,
     mimeType: asset.mime_type,
+    sizeBytes: Number(asset.size_bytes || 0),
     url: `${origin}/provider-media/${token}`,
     base64: referenceBase64
   };
@@ -295,6 +297,8 @@ async function submitSceneJob(env, project, scene, request, { vendor, fallback =
     aspectRatio: project.aspect_ratio,
     resolution: project.resolution,
     googleModel: googleModel || project.google_model || env.GOOGLE_AI_DEFAULT_MODEL || "veo-3.1-generate-preview",
+    hasReference: Boolean(reference),
+    referenceAssetId: reference?.assetId || null,
     fallback: Boolean(fallback)
   };
   const attempts = [];
@@ -458,7 +462,7 @@ export default {
       return json({
         ok: true,
         app: env.APP_NAME || "VIDGEN",
-        version: env.APP_VERSION || "1.4.1",
+        version: env.APP_VERSION || "1.4.2",
         runtime: "cloudflare-workers",
         time: new Date().toISOString()
       });
@@ -476,7 +480,7 @@ export default {
       return json({
         ok: true,
         app: env.APP_NAME || "VIDGEN",
-        version: env.APP_VERSION || "1.4.1",
+        version: env.APP_VERSION || "1.4.2",
         providers
       });
     }
@@ -505,7 +509,7 @@ export default {
       return json({
         ok: checks.worker && checks.d1Binding && checks.r2Binding && checks.d1 === "ok",
         app: env.APP_NAME || "VIDGEN",
-        version: env.APP_VERSION || "1.4.1",
+        version: env.APP_VERSION || "1.4.2",
         checks,
         providers,
         databaseError
