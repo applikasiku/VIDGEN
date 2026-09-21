@@ -66,7 +66,7 @@ async function openProject(id){
   try{
     const data=await api('/api/projects/'+encodeURIComponent(id));
     const p=data.project;
-    state.currentProjectId=p.id;state.scenes=(data.scenes||[]).map((s,i)=>({id:s.id,index:i,title:s.title,start:Number(s.start_seconds||0),duration:Number(s.duration_seconds||8),vendor:s.vendor,prompt:s.prompt,shot:'saved shot',motion:'saved movement',lighting:'saved lighting'}));state.jobs=data.jobs||[];state.referenceAsset=data.reference||null;
+    state.currentProjectId=p.id;state.scenes=mapServerScenes(data.scenes||[]);state.jobs=data.jobs||[];state.referenceAsset=data.reference||null;
     state.style=p.style||'cinematic';state.ratio=p.aspect_ratio||'16:9';state.resolution=p.resolution||'1080p';state.vendor=p.router_mode||'auto';state.priority=p.router_priority||'quality';state.audioDuration=Number(p.duration_seconds||0);
     $('#projectTitle').value=p.title||'Videoclip Baru';setGenreValue(p.genre||'');$('#conceptInput').value=p.concept||'';$('#driveSaveToggle').checked=Boolean(p.save_to_drive);
     if(state.audio?.url?.startsWith('blob:'))URL.revokeObjectURL(state.audio.url);
@@ -81,7 +81,7 @@ async function deleteProject(id){
   try{await api('/api/projects/'+encodeURIComponent(id),{method:'DELETE'});state.projects=state.projects.filter(p=>p.id!==id);if(state.currentProjectId===id)newProject(false);renderProjects();renderHistory();toast('Project dihapus.')}catch(e){toast(e.message)}
 }
 function newProject(switchTab=true){
-  clearInterval(state.jobTimer);state.currentProjectId=null;state.scenes=[];state.jobs=[];state.referenceAsset=null;state.audioDuration=0;
+  stopJobPolling();state.currentProjectId=null;state.scenes=[];state.jobs=[];state.referenceAsset=null;state.audioDuration=0;
   if(state.audio?.url?.startsWith('blob:'))URL.revokeObjectURL(state.audio.url);state.audio=null;player.removeAttribute('src');
   $('#projectTitle').value='Videoclip Baru';setGenreValue('Ska rocksteady');$('#conceptInput').value='';$('#audioTitle').textContent='Pilih lagu atau tarik file ke sini';$('#audioMeta').textContent='File akan disimpan ke R2.';$('#audioStrip').classList.remove('show');
   applyPrefs();renderAssets();renderScenes();renderJobs();setStep(1);if(switchTab)$('[data-tab="create"]').click();
@@ -93,17 +93,65 @@ async function makeStoryboard(){
   try{state.scenes=state.api?(await api('/api/storyboard',{method:'POST',body:JSON.stringify(payload)})).scenes:localStoryboard()}catch(e){toast(e.message);return}
   renderScenes();setStep(2);toast(`Storyboard dibuat: ${state.scenes.length} scene`)
 }
+function mapServerScenes(rows=[]){
+  const oldByIndex=new Map(state.scenes.map((s,i)=>[Number(s.index??i),s]));
+  return rows.map((s,i)=>{const old=oldByIndex.get(Number(s.scene_index??i))||{};return {...old,id:s.id,index:Number(s.scene_index??i),title:s.title||old.title||`Scene ${i+1}`,start:Number(s.start_seconds??old.start??0),duration:Number(s.duration_seconds??old.duration??state.duration),vendor:s.vendor||old.vendor||'auto',prompt:s.prompt||old.prompt||'',status:s.status||old.status||'draft',providerJobId:s.provider_job_id||null,outputR2Key:s.output_r2_key||null}});
+}
+function sceneStatusLabel(s){return s?.status|| (s?.outputR2Key?'completed':'draft')}
 function renderScenes(){
   const list=$('#sceneList'),tl=$('#timeline');if(!state.scenes.length){list.innerHTML='<div class="empty">Storyboard belum dibuat.</div>';tl.innerHTML='<div class="empty">Scene akan muncul di timeline.</div>';updateStats();return}
-  list.innerHTML=state.scenes.map((s,i)=>`<div class="scene-row"><div class="scene-num">${String(i+1).padStart(2,'0')}</div><div class="scene-copy"><b>${esc(s.title)}</b><div class="scene-meta">${esc(s.shot||'cinematic shot')} • ${esc(s.motion||'intentional movement')} • ${esc(s.lighting||'cinematic light')}</div><small>${fmt(s.start)} • ${s.duration}s • ${esc(s.prompt)}</small></div><div class="scene-actions"><button data-edit="${esc(s.id)}">✎</button></div></div>`).join('');
-  tl.innerHTML=state.scenes.map((s,i)=>`<div class="timeline-item"><div class="timeline-thumb"></div><b>${String(i+1).padStart(2,'0')} • ${esc(s.title)}</b><small>${fmt(s.start)}–${fmt(Number(s.start)+Number(s.duration))} • ${state.ratio}</small><small>${state.vendor==='auto'?'Auto Router':esc(state.vendor)}</small></div>`).join('');
-  $$('[data-edit]').forEach(b=>b.onclick=()=>openScene(b.dataset.edit));updateStats()
+  list.innerHTML=state.scenes.map((s,i)=>{const status=sceneStatusLabel(s);return `<div class="scene-row scene-${esc(status)}"><div class="scene-num">${String(i+1).padStart(2,'0')}</div><div class="scene-copy"><div class="scene-titleline"><b>${esc(s.title)}</b><span class="scene-state">${esc(status)}</span></div><div class="scene-meta">${esc(s.shot||'cinematic shot')} • ${esc(s.motion||'intentional movement')} • ${esc(s.lighting||'cinematic light')}</div><small>${fmt(s.start)} • ${s.duration}s • ${esc(s.prompt)}</small></div><div class="scene-actions">${s.outputR2Key?`<button data-preview="${esc(s.id)}" title="Preview">▶</button>`:''}<button data-edit="${esc(s.id)}" title="Inspector">✎</button></div></div>`}).join('');
+  tl.innerHTML=state.scenes.map((s,i)=>`<div class="timeline-item ${s.outputR2Key?'has-output':''}"><div class="timeline-thumb">${s.outputR2Key?'▶':''}</div><b>${String(i+1).padStart(2,'0')} • ${esc(s.title)}</b><small>${fmt(s.start)}–${fmt(Number(s.start)+Number(s.duration))} • ${state.ratio}</small><small>${esc(sceneStatusLabel(s))} • ${esc(s.vendor||state.vendor||'auto')}</small></div>`).join('');
+  $$('[data-edit]').forEach(b=>b.onclick=()=>openScene(b.dataset.edit));
+  $$('[data-preview]').forEach(b=>b.onclick=()=>openScene(b.dataset.preview,true));
+  updateStats()
 }
-function openScene(id){const s=state.scenes.find(x=>x.id===id);if(!s)return;state.editing=id;$('#modalTitle').textContent=s.title;$('#modalSceneTitle').value=s.title;$('#modalPrompt').value=s.prompt;$('#modal').classList.add('show')}
-function closeModal(){$('#modal').classList.remove('show');state.editing=null}
-function renderJobs(){const box=$('#jobList'),summary=$('#queueSummary');if(!state.jobs.length){box.innerHTML='<div class="empty">Belum ada job.</div>';if(summary)summary.textContent='Belum ada render aktif.';updateStats();return}const failed=state.jobs.filter(j=>j.error||j.error_message||j.status==='failed').length;const done=state.jobs.filter(j=>['completed','succeeded','done'].includes(j.status)).length;const active=state.jobs.length-failed-done;if(summary)summary.textContent=`${active} aktif • ${done} selesai • ${failed} gagal`;box.innerHTML=state.jobs.map((j,i)=>{const status=j.error||j.error_message?'failed':j.demo?'demo':j.status||'submitted';const progress=Number.isFinite(Number(j.progress))?Number(j.progress):(status==='completed'?100:status==='failed'?5:status==='demo'?32:12);return `<div class="job"><div class="job-head"><b>Scene ${i+1} • ${esc(j.provider||'auto')}</b><span>${esc(status)}</span></div><div class="progress"><i style="width:${Math.max(3,Math.min(100,progress))}%"></i></div>${j.error_message||j.error?`<small class="job-error">${esc(j.error_message||j.error)}</small>`:''}</div>`}).join('');updateStats()}
-async function refreshJobs(silent=false){if(!state.api||!state.currentProjectId)return;if(!silent)$('#refreshJobs')?.setAttribute('disabled','');try{const r=await api('/api/jobs?projectId='+encodeURIComponent(state.currentProjectId));state.jobs=r.jobs||[];renderJobs()}catch(e){if(!silent)toast(e.message)}finally{if(!silent)$('#refreshJobs')?.removeAttribute('disabled')}}
-function startJobPolling(){clearInterval(state.jobTimer);if(!state.currentProjectId)return;state.jobTimer=setInterval(()=>refreshJobs(true),8000)}
+function openScene(id,autoplay=false){
+  const s=state.scenes.find(x=>x.id===id);if(!s)return;state.editing=id;
+  $('#modalTitle').textContent=s.title;$('#modalSceneTitle').value=s.title;$('#modalPrompt').value=s.prompt;
+  const status=sceneStatusLabel(s);$('#modalSceneStatus').textContent=status;$('#modalSceneStatus').className='scene-status status-'+status;
+  $('#modalVendor').value=s.vendor||'auto';$('#modalFallback').value='true';
+  const video=$('#modalVideo');video.pause();video.removeAttribute('src');video.hidden=!s.outputR2Key;
+  if(s.outputR2Key){video.src='/api/scenes/'+encodeURIComponent(s.id)+'/output?v='+Date.now();video.load();if(autoplay)video.play().catch(()=>{})}
+  $('#modal').classList.add('show')
+}
+function closeModal(){const v=$('#modalVideo');if(v){v.pause();v.removeAttribute('src');v.load()}$('#modal').classList.remove('show');state.editing=null}
+async function regenerateScene(){
+  const s=state.scenes.find(x=>x.id===state.editing);if(!s||!state.api)return;
+  const btn=$('#regenerateScene');btn.disabled=true;btn.textContent='Mengirim…';
+  try{
+    const r=await api('/api/scenes/'+encodeURIComponent(s.id)+'/regenerate',{method:'POST',body:JSON.stringify({vendor:$('#modalVendor').value,fallback:$('#modalFallback').value==='true'})});
+    s.status=r.job?.demo?'demo':r.job?.error?'failed':'queued';s.vendor=r.job?.provider||$('#modalVendor').value;
+    if(r.job)state.jobs.unshift(r.job);renderScenes();renderJobs();startJobPolling();openScene(s.id);toast(r.job?.error?'Regenerate gagal dikirim.':'Regenerate scene dikirim.');
+  }catch(e){toast(e.message)}finally{btn.disabled=false;btn.textContent='↻ Regenerate Scene'}
+}
+function renderJobs(){
+  const box=$('#jobList'),summary=$('#queueSummary');if(!state.jobs.length){box.innerHTML='<div class="empty">Belum ada job.</div>';if(summary)summary.textContent='Belum ada render aktif.';updateStats();return}
+  const failed=state.jobs.filter(j=>j.error||j.error_message||j.status==='failed').length;
+  const done=state.jobs.filter(j=>j.status==='completed').length;
+  const active=state.jobs.filter(j=>['queued','submitted','running','processing','dreaming'].includes(j.status)).length;
+  if(summary)summary.textContent=`${active} aktif • ${done} selesai • ${failed} gagal`;
+  box.innerHTML=state.jobs.map((j,i)=>{const status=j.error||j.error_message?'failed':j.demo?'demo':j.status||'submitted';const progress=Number.isFinite(Number(j.progress))?Number(j.progress):(status==='completed'?100:status==='failed'?5:status==='demo'?32:12);const scene=state.scenes.find(s=>s.id===(j.scene_id||j.sceneId));const sceneNo=(scene?.index??j.sceneIndex??i)+1;return `<div class="job job-${esc(status)}"><div class="job-head"><b>Scene ${sceneNo} • ${esc(j.provider||'auto')}</b><span>${esc(status)}</span></div><div class="progress"><i style="width:${Math.max(3,Math.min(100,progress))}%"></i></div>${j.error_message||j.error?`<small class="job-error">${esc(j.error_message||j.error)}</small>`:''}</div>`}).join('');updateStats()
+}
+function applyJobSync(r){
+  state.jobs=r.jobs||[];
+  if(Array.isArray(r.scenes)){state.scenes=mapServerScenes(r.scenes);renderScenes()}
+  const p=state.projects.find(x=>x.id===state.currentProjectId);if(p&&r.projectStatus){p.status=r.projectStatus;p.updated_at=new Date().toISOString();renderProjects();renderHistory()}
+  renderJobs()
+}
+async function refreshJobs(silent=false){
+  if(!state.api||!state.currentProjectId)return;
+  if(!silent)$('#refreshJobs')?.setAttribute('disabled','');
+  try{const r=await api('/api/jobs?projectId='+encodeURIComponent(state.currentProjectId));applyJobSync(r)}
+  catch(e){if(!silent)toast(e.message)}
+  finally{if(!silent)$('#refreshJobs')?.removeAttribute('disabled')}
+}
+function stopJobPolling(){if(state.jobTimer){clearTimeout(state.jobTimer);state.jobTimer=null}}
+function startJobPolling(){
+  stopJobPolling();if(!state.currentProjectId)return;
+  const tick=async()=>{await refreshJobs(true);const active=state.jobs.some(j=>['queued','submitted','running','processing','dreaming'].includes(j.status));if(active)state.jobTimer=setTimeout(tick,7000+Math.floor(Math.random()*4000));else state.jobTimer=null};
+  state.jobTimer=setTimeout(tick,2500)
+}
 async function uploadAsset(file){
   if(!file)throw new Error('File tidak ditemukan.');
   if(!['image/jpeg','image/png','image/webp'].includes(file.type))throw new Error(`${file.name}: gunakan JPG, PNG, atau WEBP.`);
@@ -140,11 +188,12 @@ async function saveProject(){
   state.currentProjectId=r.id;
   const row={id:r.id,title:p.title,genre:p.genre,status:'draft',aspect_ratio:p.aspectRatio,resolution:p.resolution,audio_name:p.audioName,duration_seconds:p.duration,created_at:new Date().toISOString(),updated_at:new Date().toISOString()};
   const ix=state.projects.findIndex(x=>x.id===r.id);if(ix>=0)state.projects[ix]={...state.projects[ix],...row};else state.projects.unshift(row);
+  try{const detail=await api('/api/projects/'+encodeURIComponent(r.id));state.scenes=mapServerScenes(detail.scenes||[]);state.jobs=detail.jobs||state.jobs;state.referenceAsset=detail.reference||state.referenceAsset;renderScenes();renderJobs()}catch{}
   renderProjects();renderHistory();updateStats();return r.id
 }
-async function generate(){if(!state.api)return toast('Server belum terhubung. Muat ulang untuk mencoba lagi.');if(!state.scenes.length)return toast('Buat storyboard terlebih dahulu.');$('#generateBtn').disabled=true;$('#generateBtn').textContent='Menyiapkan render…';try{state.currentProjectId=await saveProject();if(state.api){const r=await api('/api/generate',{method:'POST',body:JSON.stringify({projectId:state.currentProjectId})});state.jobs=r.jobs||[]}else{const route={quality:['seedance','veo','runway','luma'],balanced:['seedance','runway','veo','luma'],speed:['runway','luma','seedance','veo'],cost:['luma','seedance','runway','veo']}[state.priority];state.jobs=state.scenes.map((s,i)=>({provider:state.vendor==='auto'?route[i%route.length]:state.vendor,demo:true,status:'demo'}))}renderJobs();setStep(4);startJobPolling();toast(state.jobs.every(j=>j.demo)?'Simulasi dibuat. Belum ada video yang dihasilkan.':state.jobs.every(j=>j.error)?'Semua proses gagal. Periksa konfigurasi provider.':'Permintaan video dikirim.')}catch(e){toast(e.message)}finally{$('#generateBtn').disabled=false;$('#generateBtn').textContent='🚀 Generate Music Video'}}
+async function generate(){if(!state.api)return toast('Server belum terhubung. Muat ulang untuk mencoba lagi.');if(!state.scenes.length)return toast('Buat storyboard terlebih dahulu.');$('#generateBtn').disabled=true;$('#generateBtn').textContent='Menyiapkan render…';try{state.currentProjectId=await saveProject();if(state.api){const r=await api('/api/generate',{method:'POST',body:JSON.stringify({projectId:state.currentProjectId,fallback:$('#fallbackToggle').checked})});state.jobs=r.jobs||[];for(const j of state.jobs){const s=state.scenes.find(x=>x.id===(j.sceneId||j.scene_id));if(s){s.status=j.demo?'demo':j.error?'failed':'queued';s.vendor=j.provider||s.vendor}}renderScenes()}else{const route={quality:['seedance','veo','runway','luma'],balanced:['seedance','runway','veo','luma'],speed:['runway','luma','seedance','veo'],cost:['luma','seedance','runway','veo']}[state.priority];state.jobs=state.scenes.map((s,i)=>({provider:state.vendor==='auto'?route[i%route.length]:state.vendor,demo:true,status:'demo'}))}renderJobs();setStep(4);startJobPolling();toast(state.jobs.every(j=>j.demo)?'Simulasi dibuat. Belum ada video yang dihasilkan.':state.jobs.every(j=>j.error)?'Semua proses gagal. Periksa konfigurasi provider.':'Permintaan video dikirim.')}catch(e){toast(e.message)}finally{$('#generateBtn').disabled=false;$('#generateBtn').textContent='🚀 Generate Music Video'}}
 async function connectDrive(){if(!state.api)return toast('Deploy Worker terlebih dahulu untuk OAuth Google Drive.');if(state.drive.connected)return toast('Google Drive sudah terhubung.');try{const r=await api('/api/drive/connect');location.href=r.authUrl}catch(e){toast(e.message)}}
-function exportProject(){const data={app:'VIDGEN',version:'1.3.0',title:$('#projectTitle').value,genre:getGenreValue(),concept:$('#conceptInput').value,settings:{style:state.style,ratio:state.ratio,resolution:state.resolution,sceneDuration:state.duration,priority:state.priority,vendor:state.vendor,fallback:$('#fallbackToggle').checked,saveToDrive:$('#driveSaveToggle').checked},scenes:state.scenes};const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));a.download='VIDGEN-project.json';a.click();toast('Project JSON diekspor.')}
+function exportProject(){const data={app:'VIDGEN',version:'1.4.0',title:$('#projectTitle').value,genre:getGenreValue(),concept:$('#conceptInput').value,settings:{style:state.style,ratio:state.ratio,resolution:state.resolution,sceneDuration:state.duration,priority:state.priority,vendor:state.vendor,fallback:$('#fallbackToggle').checked,saveToDrive:$('#driveSaveToggle').checked},scenes:state.scenes};const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));a.download='VIDGEN-project.json';a.click();toast('Project JSON diekspor.')}
 const input=$('#audioInput'),drop=$('#dropzone'),player=$('#audioPlayer');
 function loadAudio(file){if(!file||!file.type.startsWith('audio/'))return toast('Pilih file audio.');if(state.audio?.url?.startsWith('blob:'))URL.revokeObjectURL(state.audio.url);const url=URL.createObjectURL(file);state.audio={file,url,name:file.name,r2Key:null,uploadPromise:null};player.src=url;$('#audioTitle').textContent=file.name;$('#audioMeta').textContent=`${(file.size/1024/1024).toFixed(2)} MB • menunggu metadata`;$('#audioStrip').classList.add('show');buildWave();player.onloadedmetadata=()=>{state.audioDuration=player.duration||0;$('#audioTime').textContent=fmt(state.audioDuration);updateStats()};if(state.api)state.audio.uploadPromise=uploadAudio(file);setStep(1);toast('Musik siap.')}
 input.onchange=e=>loadAudio(e.target.files[0]);['dragenter','dragover'].forEach(x=>drop.addEventListener(x,e=>{e.preventDefault();drop.classList.add('drag')}));['dragleave','drop'].forEach(x=>drop.addEventListener(x,e=>{e.preventDefault();drop.classList.remove('drag')}));drop.addEventListener('drop',e=>loadAudio(e.dataTransfer.files[0]));
@@ -162,7 +211,7 @@ $('#assetInput')?.addEventListener('change',e=>uploadAssets(e.target.files));
 $('#pickReference')?.addEventListener('click',()=>{$('[data-tab="assets"]').click();toast('Pilih tombol Pakai pada reference image.')});
 $('#clearReference')?.addEventListener('click',()=>{state.referenceAsset=null;renderAssets();toast('Reference image dilepas.')});
 $('#refreshJobs')?.addEventListener('click',()=>refreshJobs(false));
-$('#modalX').onclick=closeModal;$('#modal').onclick=e=>{if(e.target.id==='modal')closeModal()};$('#saveScene').onclick=()=>{const s=state.scenes.find(x=>x.id===state.editing);if(!s)return;s.title=$('#modalSceneTitle').value.trim()||s.title;s.prompt=$('#modalPrompt').value.trim()||s.prompt;renderScenes();closeModal();toast('Scene diperbarui.')};$('#deleteScene').onclick=()=>{state.scenes=state.scenes.filter(x=>x.id!==state.editing).map((s,i)=>({...s,index:i,start:i*state.duration}));renderScenes();closeModal();toast('Scene dihapus.')};
+$('#modalX').onclick=closeModal;$('#regenerateScene')?.addEventListener('click',regenerateScene);$('#modal').onclick=e=>{if(e.target.id==='modal')closeModal()};$('#saveScene').onclick=()=>{const s=state.scenes.find(x=>x.id===state.editing);if(!s)return;s.title=$('#modalSceneTitle').value.trim()||s.title;s.prompt=$('#modalPrompt').value.trim()||s.prompt;renderScenes();closeModal();toast('Scene diperbarui.')};$('#deleteScene').onclick=()=>{state.scenes=state.scenes.filter(x=>x.id!==state.editing).map((s,i)=>({...s,index:i,start:i*state.duration}));renderScenes();closeModal();toast('Scene dihapus.')};
 $$('.nav-item').forEach(b=>b.onclick=()=>{$$('.nav-item').forEach(x=>x.classList.remove('active'));b.classList.add('active');$$('.view').forEach(v=>v.classList.remove('active'));$(`#view-${b.dataset.tab}`).classList.add('active');window.scrollTo({top:0,behavior:'smooth'})});
 // VIDGEN extra UI features 2026-09-22
 const DEFAULT_PREFS={ratio:'16:9',resolution:'1080p',duration:8,vendor:'auto',drive:true};
