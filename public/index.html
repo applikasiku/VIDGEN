@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" />
   <link rel="stylesheet" href="/styles.css" />
   <title>VIDGEN — AI Music Video Generator</title>
 </head>
@@ -18,26 +19,26 @@
   <div class="shell">
     <aside class="sidebar">
       <a class="brand" href="#" aria-label="VIDGEN home">
-        <span class="brand-icon">▶</span><span class="brand-word">VID<span>GEN</span></span>
+        <span class="brand-icon"><i class="fa-solid fa-play"></i></span><span class="brand-word">VID<span>GEN</span></span>
       </a>
       <nav class="nav">
-        <button class="nav-item active" data-tab="create"><i>✦</i><span>Buat Video</span></button>
-        <button class="nav-item" data-tab="projects"><i>▦</i><span>Proyek</span></button>
-        <button class="nav-item" data-tab="assets"><i>▧</i><span>Aset</span></button>
-        <button class="nav-item" data-tab="vendors"><i>◈</i><span>Vendor AI</span></button>
-        <button class="nav-item" data-tab="storage"><i>☁</i><span>Storage</span></button>
-        <button class="nav-item" data-tab="templates"><i>▦</i><span>Template</span></button>
-        <button class="nav-item" data-tab="prompts"><i>✎</i><span>Prompt</span></button>
-        <button class="nav-item" data-tab="history"><i>↺</i><span>Riwayat</span></button>
-        <button class="nav-item" data-tab="settings"><i>⚙</i><span>Pengaturan</span></button>
+        <button class="nav-item active" data-tab="create"><i class="fa-solid fa-wand-magic-sparkles"></i><span>Buat Video</span></button>
+        <button class="nav-item" data-tab="projects"><i class="fa-solid fa-folder-open"></i><span>Proyek</span></button>
+        <button class="nav-item" data-tab="assets"><i class="fa-solid fa-images"></i><span>Aset</span></button>
+        <button class="nav-item" data-tab="vendors"><i class="fa-solid fa-microchip"></i><span>Vendor AI</span></button>
+        <button class="nav-item" data-tab="storage"><i class="fa-solid fa-hard-drive"></i><span>Storage</span></button>
+        <button class="nav-item" data-tab="templates"><i class="fa-solid fa-layer-group"></i><span>Template</span></button>
+        <button class="nav-item" data-tab="prompts"><i class="fa-solid fa-pen-ruler"></i><span>Prompt</span></button>
+        <button class="nav-item" data-tab="history"><i class="fa-solid fa-clock-rotate-left"></i><span>Riwayat</span></button>
+        <button class="nav-item" data-tab="settings"><i class="fa-solid fa-gear"></i><span>Pengaturan</span></button>
       </nav>
       <div class="side-card">
         <div class="side-glow"></div>
-        <small>VIDGEN V1.4.1</small>
+        <small>VIDGEN V1.4.2</small>
         <b>Satu lagu.<br/>Banyak imajinasi.</b>
         <p>Storyboard, multi-vendor routing, render queue & arsip Drive.</p>
       </div>
-      <div class="version">v1.4.1 • PWA</div>
+      <div class="version">v1.4.2 • PWA</div>
     </aside>
 
     <main class="main">
@@ -48,20 +49,20 @@
         </div>
         <div class="top-actions">
           <div class="cloud-state" id="cloudState"><span></span><b>Checking API…</b></div>
-          <button class="avatar" id="driveQuick" title="Google Drive">G</button>
+          <button class="avatar" id="driveQuick" title="Google Drive"><i class="fa-brands fa-google-drive"></i></button>
         </div>
       </header>
 
       <section class="notice" id="notice">
-        <div><b>VIDGEN V1.4.1</b><span>Status produksi dan provider dibaca langsung dari Cloudflare Worker.</span></div>
-        <button id="dismissNotice">×</button>
+        <div><b>VIDGEN V1.4.2</b><span>Status produksi dan provider dibaca langsung dari Cloudflare Worker.</span></div>
+        <button id="dismissNotice" title="Tutup"><i class="fa-solid fa-xmark"></i></button>
       </section>
 
       <section class="kpis">
-        <article><div class="kpi-icon purple">◆</div><div><small>Project aktif</small><strong id="projectCount">0</strong></div></article>
-        <article><div class="kpi-icon cyan">⚡</div><div><small>Scene</small><strong id="sceneCount">0</strong></div></article>
-        <article><div class="kpi-icon green">☁</div><div><small>Google Drive</small><strong id="driveKpi">Belum</strong></div></article>
-        <article><div class="kpi-icon orange">◈</div><div><small>Router</small><strong id="routerKpi">Auto</strong></div></article>
+        <article><div class="kpi-icon purple"><i class="fa-solid fa-folder-tree"></i></div><div><small>Project aktif</small><strong id="projectCount">0</strong></div></article>
+        <article><div class="kpi-icon cyan"><i class="fa-solid fa-clapperboard"></i></div><div><small>Scene</small><strong id="sceneCount">0</strong></div></article>
+        <article><div class="kpi-icon green"><i class="fa-brands fa-google-drive"></i></div><div><small>Google Drive</small><strong id="driveKpi">Belum</strong></div></article>
+        <article><div class="kpi-icon orange"><i class="fa-solid fa-route"></i></div><div><small>Router</small><strong id="routerKpi">Auto</strong></div></article>
       </section>
 
       <section class="wizard card">
@@ -78,18 +79,18 @@
               <div class="section-title"><div><small>01 • INPUT</small><h2>Unggah Musik</h2></div><span class="pill">MP3 • WAV • M4A</span></div>
               <label class="dropzone" id="dropzone">
                 <input type="file" id="audioInput" accept="audio/*" hidden />
-                <div class="music-orb">♫</div>
+                <div class="music-orb"><i class="fa-solid fa-music"></i></div>
                 <div class="drop-copy"><b id="audioTitle">Pilih lagu atau tarik file ke sini</b><span id="audioMeta">File dapat disimpan ke R2 saat backend Cloudflare aktif.</span></div>
                 <span class="browse">Pilih File</span>
               </label>
               <div class="audio-strip" id="audioStrip">
-                <button id="audioPlay">▶</button><div class="wave" id="wave"></div><span id="audioTime">00:00</span>
+                <button id="audioPlay" title="Play / Pause"><i class="fa-solid fa-play"></i></button><div class="wave" id="wave"></div><span id="audioTime">00:00</span>
               </div>
               <audio id="audioPlayer" preload="metadata"></audio>
             </article>
 
             <article class="card section-card">
-              <div class="section-title"><div><small>02 • AI DIRECTOR</small><h2>Analisis & Storyboard</h2></div><button class="text-btn" id="resetScenes">Reset</button></div>
+              <div class="section-title"><div><small>02 • AI DIRECTOR</small><h2>Analisis & Storyboard</h2></div><button class="text-btn" id="resetScenes"><i class="fa-solid fa-rotate-left"></i> Reset</button></div>
               <div class="form-grid">
                 <label><span>Judul Project</span><input id="projectTitle" value="Videoclip Baru" /></label>
                 <label><span>Genre / Nuansa</span><select id="genreSelect">
@@ -119,8 +120,20 @@
                 <label><input type="checkbox" id="lyricToggle" checked /> <span>Sinkron lirik</span></label>
                 <label><input type="checkbox" id="consistencyToggle" checked /> <span>Jaga konsistensi karakter</span></label>
               </div>
-              <div class="reference-strip" id="referenceStrip"><div><small>REFERENCE IMAGE</small><b id="referenceName">Belum dipilih</b></div><button class="secondary" id="pickReference">Pilih dari Aset</button><button class="text-btn" id="clearReference">Hapus</button></div>
-              <div class="action-row"><button class="primary" id="storyboardBtn">✦ Buat Storyboard AI</button><button class="secondary" id="addSceneBtn">＋ Scene Manual</button><button class="secondary" id="saveDraftBtn">💾 Simpan Draft</button></div>
+              <div class="reference-strip reference-manager" id="referenceStrip">
+                <div class="reference-preview" id="referencePreview"><i class="fa-regular fa-image"></i></div>
+                <div class="reference-copy">
+                  <small>REFERENCE IMAGE AKTIF</small>
+                  <b id="referenceName">Belum dipilih</b>
+                  <span id="referenceStatus">Pilih gambar untuk menjaga karakter dan style antar scene.</span>
+                </div>
+                <div class="reference-actions">
+                  <button class="secondary" id="quickReferenceUpload"><i class="fa-solid fa-upload"></i> Upload</button>
+                  <button class="secondary" id="pickReference"><i class="fa-solid fa-images"></i> Aset</button>
+                  <button class="text-btn danger-text" id="clearReference" title="Lepas reference"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+              </div>
+              <div class="action-row"><button class="primary" id="storyboardBtn"><i class="fa-solid fa-wand-magic-sparkles"></i> Buat Storyboard AI</button><button class="secondary" id="addSceneBtn"><i class="fa-solid fa-plus"></i> Scene Manual</button><button class="secondary" id="saveDraftBtn"><i class="fa-solid fa-floppy-disk"></i> Simpan Draft</button></div>
               <div class="scene-list" id="sceneList"><div class="empty">Storyboard belum dibuat.</div></div>
             </article>
           </div>
@@ -130,12 +143,12 @@
               <div class="section-title"><div><small>03 • GENERATION</small><h2>Pengaturan Video</h2></div></div>
               <label class="mini-title">Gaya visual</label>
               <div class="style-grid" id="styleGrid">
-                <button class="style active" data-style="cinematic"><span>◐</span>Cinematic</button>
-                <button class="style" data-style="realistic"><span>◉</span>Realistic</button>
-                <button class="style" data-style="anime"><span>✦</span>Anime</button>
-                <button class="style" data-style="gothic"><span>♠</span>Gothic</button>
-                <button class="style" data-style="retro"><span>◫</span>Retro</button>
-                <button class="style" data-style="stage"><span>♫</span>Music Stage</button>
+                <button class="style active" data-style="cinematic"><span><i class="fa-solid fa-film"></i></span>Cinematic</button>
+                <button class="style" data-style="realistic"><span><i class="fa-solid fa-camera"></i></span>Realistic</button>
+                <button class="style" data-style="anime"><span><i class="fa-solid fa-wand-sparkles"></i></span>Anime</button>
+                <button class="style" data-style="gothic"><span><i class="fa-solid fa-moon"></i></span>Gothic</button>
+                <button class="style" data-style="retro"><span><i class="fa-solid fa-camera-retro"></i></span>Retro</button>
+                <button class="style" data-style="stage"><span><i class="fa-solid fa-microphone-lines"></i></span>Music Stage</button>
               </div>
               <label class="mini-title">Rasio</label>
               <div class="segments" id="ratioGroup"><button class="active" data-value="16:9">16:9</button><button data-value="9:16">9:16</button><button data-value="1:1">1:1</button></div>
@@ -147,11 +160,11 @@
               <div class="segments four" id="priorityGroup"><button class="active" data-value="quality">Quality</button><button data-value="balanced">Balance</button><button data-value="speed">Fast</button><button data-value="cost">Cost</button></div>
               <label class="mini-title">Vendor AI</label>
               <div class="vendor-list" id="vendorList">
-                <button class="vendor active" data-vendor="auto"><span class="vendor-logo auto">A</span><div><b>Auto Router</b><small>VIDGEN memilih vendor per scene</small></div><em>BEST</em></button>
-                <button class="vendor" data-vendor="seedance"><span class="vendor-logo seed">S</span><div><b>Seedance</b><small>Music video & multimodal</small></div><em>AI</em></button>
-                <button class="vendor" data-vendor="google"><span class="vendor-logo veo">G</span><div><b>Google AI</b><small>Veo 3.1 + Omni Flash</small></div><em>4 MODEL</em></button>
-                <button class="vendor" data-vendor="runway"><span class="vendor-logo run">R</span><div><b>Runway</b><small>Creative workflow</small></div><em>AI</em></button>
-                <button class="vendor" data-vendor="luma"><span class="vendor-logo luma">L</span><div><b>Luma</b><small>Fast camera motion</small></div><em>AI</em></button>
+                <button class="vendor active" data-vendor="auto"><span class="vendor-logo auto"><i class="fa-solid fa-route"></i></span><div><b>Auto Router</b><small>VIDGEN memilih vendor per scene</small></div><em>BEST</em></button>
+                <button class="vendor" data-vendor="seedance"><span class="vendor-logo seed"><i class="fa-solid fa-music"></i></span><div><b>Seedance</b><small>Music video & multimodal</small></div><em>AI</em></button>
+                <button class="vendor" data-vendor="google"><span class="vendor-logo veo"><i class="fa-brands fa-google"></i></span><div><b>Google AI</b><small>Veo 3.1 + Omni Flash</small></div><em>4 MODEL</em></button>
+                <button class="vendor" data-vendor="runway"><span class="vendor-logo run"><i class="fa-solid fa-clapperboard"></i></span><div><b>Runway</b><small>Creative workflow</small></div><em>AI</em></button>
+                <button class="vendor" data-vendor="luma"><span class="vendor-logo luma"><i class="fa-solid fa-video"></i></span><div><b>Luma</b><small>Fast camera motion</small></div><em>AI</em></button>
               </div>
               <div class="google-model-panel" id="googleModelPanel">
                 <label class="mini-title" for="googleModel">Model Google</label>
@@ -166,43 +179,43 @@
               <label class="toggle"><input type="checkbox" id="fallbackToggle" checked /><span></span><div><b>Fallback vendor</b><small>Coba vendor berikutnya saat gagal.</small></div></label>
               <label class="toggle"><input type="checkbox" id="driveSaveToggle" checked /><span></span><div><b>Simpan ke Google Drive</b><small>Arsip final otomatis setelah render.</small></div></label>
               <div class="estimate"><span>Estimasi</span><b id="estimate">0 scene • 00:00</b></div>
-              <button class="primary full" id="generateBtn">🚀 Generate Music Video</button>
+              <button class="primary full" id="generateBtn"><i class="fa-solid fa-rocket"></i> Generate Music Video</button>
             </article>
           </div>
         </div>
 
         <article class="card timeline-card">
-          <div class="section-title"><div><small>04 • PREVIEW</small><h2>Timeline Storyboard</h2></div><div><button class="text-btn" id="exportBtn">Export JSON</button></div></div>
+          <div class="section-title"><div><small>04 • PREVIEW</small><h2>Timeline Storyboard</h2></div><div><button class="text-btn" id="exportBtn"><i class="fa-solid fa-file-export"></i> Export JSON</button></div></div>
           <div class="timeline" id="timeline"><div class="empty">Scene akan muncul di timeline.</div></div>
         </article>
 
         <div class="bottom-grid">
-          <article class="card render-card"><div class="section-title"><div><small>RENDER QUEUE</small><h2>Status Generasi</h2></div><div class="queue-actions"><span class="pill" id="jobCount">0 job</span><button class="text-btn" id="refreshJobs">Refresh</button></div></div><div class="queue-summary" id="queueSummary">Belum ada render aktif.</div><div id="jobList"><div class="empty">Belum ada job.</div></div></article>
-          <article class="card drive-card"><div class="drive-head"><div class="gdrive-logo">G</div><div><small>GOOGLE DRIVE</small><h2 id="driveTitle">Belum terhubung</h2></div></div><p id="driveText">Hubungkan Google Drive untuk menyimpan video final, storyboard dan thumbnail.</p><button class="secondary full" id="connectDrive">Hubungkan Google Drive</button><div class="drive-options"><span>✓ Scope <code>drive.file</code></span><span>✓ Folder /VIDGEN</span></div></article>
+          <article class="card render-card"><div class="section-title"><div><small>RENDER QUEUE</small><h2>Status Generasi</h2></div><div class="queue-actions"><span class="pill" id="jobCount">0 job</span><button class="text-btn" id="refreshJobs"><i class="fa-solid fa-rotate"></i> Refresh</button></div></div><div class="queue-summary" id="queueSummary">Belum ada render aktif.</div><div id="jobList"><div class="empty">Belum ada job.</div></div></article>
+          <article class="card drive-card"><div class="drive-head"><div class="gdrive-logo"><i class="fa-brands fa-google-drive"></i></div><div><small>GOOGLE DRIVE</small><h2 id="driveTitle">Belum terhubung</h2></div></div><p id="driveText">Hubungkan Google Drive untuk menyimpan video final, storyboard dan thumbnail.</p><button class="secondary full" id="connectDrive"><i class="fa-brands fa-google-drive"></i> Hubungkan Google Drive</button><div class="drive-options"><span><i class="fa-solid fa-check"></i> Scope <code>drive.file</code></span><span><i class="fa-solid fa-check"></i> Folder /VIDGEN</span></div></article>
         </div>
       </section>
 
-      <section class="view" id="view-projects"><article class="card page-card"><div class="section-title"><div><small>LIBRARY • D1 + R2</small><h2>Proyek VIDGEN</h2></div><button class="primary" id="newProjectBtn">＋ Proyek Baru</button></div><div class="project-grid" id="projectGrid"><div class="empty">Belum ada proyek tersimpan.</div></div></article></section>
+      <section class="view" id="view-projects"><article class="card page-card"><div class="section-title"><div><small>LIBRARY • D1 + R2</small><h2>Proyek VIDGEN</h2></div><button class="primary" id="newProjectBtn"><i class="fa-solid fa-plus"></i> Proyek Baru</button></div><div class="project-grid" id="projectGrid"><div class="empty">Belum ada proyek tersimpan.</div></div></article></section>
       <section class="view" id="view-assets">
         <article class="card page-card">
           <div class="section-title"><div><small>MEDIA LIBRARY • R2</small><h2>Reference Image</h2></div><span class="pill">JPG • PNG • WEBP • maks 10 MB</span></div>
           <div class="asset-toolbar">
-            <label class="asset-upload"><input type="file" id="assetInput" accept="image/jpeg,image/png,image/webp" multiple hidden /><span>＋ Bulk Upload Reference</span><small>Pilih banyak JPG/PNG/WEBP sekaligus • disimpan privat di Cloudflare R2.</small></label>
+            <label class="asset-upload"><input type="file" id="assetInput" accept="image/jpeg,image/png,image/webp" multiple hidden /><span><i class="fa-solid fa-cloud-arrow-up"></i> Bulk Upload Reference</span><small>Pilih banyak JPG/PNG/WEBP sekaligus • disimpan privat di Cloudflare R2.</small></label>
             <div class="asset-status"><b id="assetCount">0 aset</b><small>Pilih satu aset sebagai panduan visual storyboard.</small></div>
           </div>
           <div class="asset-grid" id="assetGrid"><div class="empty">Belum ada reference image.</div></div>
         </article>
       </section>
       <section class="view" id="view-vendors"><article class="card page-card"><div class="section-title"><div><small>MULTI-VENDOR</small><h2>Status Provider AI</h2></div></div><div class="provider-grid" id="providerGrid"></div></article></section>
-      <section class="view" id="view-storage"><article class="card page-card"><div class="section-title"><div><small>STORAGE</small><h2>R2 + Google Drive</h2></div></div><div class="storage-flow"><div><b>1</b><span>AI Vendor</span></div><i>→</i><div><b>2</b><span>Cloudflare R2</span></div><i>→</i><div><b>3</b><span>Composer</span></div><i>→</i><div><b>4</b><span>Google Drive</span></div></div><p class="muted">R2 dipakai untuk file kerja/render sementara. Google Drive menjadi arsip output permanen pengguna.</p></article></section>
+      <section class="view" id="view-storage"><article class="card page-card"><div class="section-title"><div><small>STORAGE</small><h2>R2 + Google Drive</h2></div></div><div class="storage-flow"><div><b>1</b><span>AI Vendor</span></div><i class="fa-solid fa-arrow-right"></i><div><b>2</b><span>Cloudflare R2</span></div><i class="fa-solid fa-arrow-right"></i><div><b>3</b><span>Composer</span></div><i class="fa-solid fa-arrow-right"></i><div><b>4</b><span>Google Drive</span></div></div><p class="muted">R2 dipakai untuk file kerja/render sementara. Google Drive menjadi arsip output permanen pengguna.</p></article></section>
       <section class="view" id="view-templates">
         <article class="card page-card">
           <div class="section-title"><div><small>QUICK START</small><h2>Template Video</h2></div><span class="pill">Preset siap pakai</span></div>
           <div class="feature-grid" id="templateGrid">
-            <button class="feature-card template-preset" data-style="cinematic" data-ratio="16:9" data-duration="8" data-genre="Cinematic music video" data-concept="Performance sinematik, close-up emosional, camera movement halus, visual konsisten mengikuti beat lagu."><i>🎬</i><b>Cinematic Music Video</b><small>16:9 • 8 detik/scene • cinematic</small></button>
-            <button class="feature-card template-preset" data-style="realistic" data-ratio="9:16" data-duration="5" data-genre="Short vertical music video" data-concept="Video vertikal dinamis untuk Reels, Shorts dan TikTok, hook kuat pada detik awal, cut cepat mengikuti beat."><i>📱</i><b>Short / Reels</b><small>9:16 • 5 detik/scene • realistic</small></button>
-            <button class="feature-card template-preset" data-style="stage" data-ratio="16:9" data-duration="8" data-genre="Live performance music video" data-concept="Panggung musik modern, lighting konser, medium dan close-up performer, crowd ambience, visual konsisten."><i>🎤</i><b>Music Stage</b><small>16:9 • 8 detik/scene • stage</small></button>
-            <button class="feature-card template-preset" data-style="retro" data-ratio="1:1" data-duration="5" data-genre="Retro visualizer" data-concept="Visualizer retro, tekstur analog, transisi musik, komposisi artistik dan gerakan kamera lembut."><i>📼</i><b>Retro Visualizer</b><small>1:1 • 5 detik/scene • retro</small></button>
+            <button class="feature-card template-preset" data-style="cinematic" data-ratio="16:9" data-duration="8" data-genre="Cinematic music video" data-concept="Performance sinematik, close-up emosional, camera movement halus, visual konsisten mengikuti beat lagu."><i class="fa-solid fa-film"></i><b>Cinematic Music Video</b><small>16:9 • 8 detik/scene • cinematic</small></button>
+            <button class="feature-card template-preset" data-style="realistic" data-ratio="9:16" data-duration="5" data-genre="Short vertical music video" data-concept="Video vertikal dinamis untuk Reels, Shorts dan TikTok, hook kuat pada detik awal, cut cepat mengikuti beat."><i class="fa-solid fa-mobile-screen-button"></i><b>Short / Reels</b><small>9:16 • 5 detik/scene • realistic</small></button>
+            <button class="feature-card template-preset" data-style="stage" data-ratio="16:9" data-duration="8" data-genre="Live performance music video" data-concept="Panggung musik modern, lighting konser, medium dan close-up performer, crowd ambience, visual konsisten."><i class="fa-solid fa-microphone-lines"></i><b>Music Stage</b><small>16:9 • 8 detik/scene • stage</small></button>
+            <button class="feature-card template-preset" data-style="retro" data-ratio="1:1" data-duration="5" data-genre="Retro visualizer" data-concept="Visualizer retro, tekstur analog, transisi musik, komposisi artistik dan gerakan kamera lembut."><i class="fa-solid fa-camera-retro"></i><b>Retro Visualizer</b><small>1:1 • 5 detik/scene • retro</small></button>
           </div>
         </article>
       </section>
@@ -211,17 +224,17 @@
         <article class="card page-card">
           <div class="section-title"><div><small>CREATIVE LIBRARY</small><h2>Prompt Library</h2></div><span class="pill">Klik untuk gunakan</span></div>
           <div class="feature-grid prompt-library">
-            <button class="feature-card prompt-preset" data-prompt="Cinematic night city performance, neon reflections, emotional close-up, smooth dolly shot, consistent character and wardrobe."><i>🌃</i><b>Neon Night</b><small>Kota malam • cinematic</small></button>
-            <button class="feature-card prompt-preset" data-prompt="Golden hour countryside, warm natural light, singer walking through green fields, aerial establishing shot, soft cinematic movement."><i>🌄</i><b>Golden Countryside</b><small>Alam • warm cinematic</small></button>
-            <button class="feature-card prompt-preset" data-prompt="Dark gothic stage, dramatic backlight, smoke, slow camera orbit, expressive performance, high contrast cinematic composition."><i>🕯</i><b>Gothic Stage</b><small>Gelap • dramatis</small></button>
-            <button class="feature-card prompt-preset" data-prompt="Energetic ska rocksteady performance, colorful street stage, dancing crowd, rhythmic handheld camera, upbeat tropical atmosphere."><i>🎺</i><b>Ska Street</b><small>Energik • musik jalanan</small></button>
+            <button class="feature-card prompt-preset" data-prompt="Cinematic night city performance, neon reflections, emotional close-up, smooth dolly shot, consistent character and wardrobe."><i class="fa-solid fa-city"></i><b>Neon Night</b><small>Kota malam • cinematic</small></button>
+            <button class="feature-card prompt-preset" data-prompt="Golden hour countryside, warm natural light, singer walking through green fields, aerial establishing shot, soft cinematic movement."><i class="fa-solid fa-mountain-sun"></i><b>Golden Countryside</b><small>Alam • warm cinematic</small></button>
+            <button class="feature-card prompt-preset" data-prompt="Dark gothic stage, dramatic backlight, smoke, slow camera orbit, expressive performance, high contrast cinematic composition."><i class="fa-solid fa-moon"></i><b>Gothic Stage</b><small>Gelap • dramatis</small></button>
+            <button class="feature-card prompt-preset" data-prompt="Energetic ska rocksteady performance, colorful street stage, dancing crowd, rhythmic handheld camera, upbeat tropical atmosphere."><i class="fa-solid fa-music"></i><b>Ska Street</b><small>Energik • musik jalanan</small></button>
           </div>
         </article>
       </section>
 
       <section class="view" id="view-history">
         <article class="card page-card">
-          <div class="section-title"><div><small>ACTIVITY</small><h2>Riwayat Pembuatan</h2></div><button class="text-btn" id="refreshHistory">Refresh</button></div>
+          <div class="section-title"><div><small>ACTIVITY</small><h2>Riwayat Pembuatan</h2></div><button class="text-btn" id="refreshHistory"><i class="fa-solid fa-rotate"></i> Refresh</button></div>
           <div class="history-list" id="historyList"><div class="empty">Belum ada riwayat proyek.</div></div>
         </article>
       </section>
@@ -238,13 +251,13 @@
             <label class="setting-card"><span>Model Google Default</span><select id="settingGoogleModel"><option value="veo-3.1-generate-preview">Veo 3.1 - Quality</option><option value="veo-3.1-fast-generate-preview">Veo 3.1 - Fast</option><option value="veo-3.1-lite-generate-preview">Veo 3.1 - Lite</option><option value="gemini-omni-1.1-flash">Omni 1.1 Flash</option></select><small>Dipakai oleh Google AI dan Auto Router.</small></label>
             <label class="setting-card switch-setting"><div><span>Simpan ke Drive</span><small>Aktifkan arsip otomatis hasil final.</small></div><input type="checkbox" id="settingDrive" checked /></label>
           </div>
-          <div class="settings-actions"><button class="primary" id="saveSettings">Simpan Pengaturan</button><button class="secondary" id="resetSettings">Reset Default</button></div>
+          <div class="settings-actions"><button class="primary" id="saveSettings"><i class="fa-solid fa-floppy-disk"></i> Simpan Pengaturan</button><button class="secondary" id="resetSettings"><i class="fa-solid fa-rotate-left"></i> Reset Default</button></div>
         </article>
       </section>
     </main>
   </div>
   <div class="toast" id="toast"></div>
-  <div class="modal" id="modal"><div class="modal-card scene-inspector"><button class="modal-x" id="modalX">×</button><small>SCENE INSPECTOR • V1.4.1</small><div class="inspector-head"><h2 id="modalTitle">Scene</h2><span class="scene-status" id="modalSceneStatus">draft</span></div><video id="modalVideo" class="scene-video" controls playsinline hidden></video><label class="field"><span>Judul</span><input id="modalSceneTitle" /></label><label class="field"><span>Prompt</span><textarea id="modalPrompt" rows="7"></textarea></label><div class="form-grid compact inspector-router"><label><span>Regenerate dengan Vendor</span><select id="modalVendor"><option value="auto">Auto Router</option><option value="seedance">Seedance</option><option value="google">Google AI</option><option value="runway">Runway</option><option value="luma">Luma</option></select></label><label><span>Model Google</span><select id="modalGoogleModel"><option value="veo-3.1-generate-preview">Veo 3.1 - Quality</option><option value="veo-3.1-fast-generate-preview">Veo 3.1 - Fast</option><option value="veo-3.1-lite-generate-preview">Veo 3.1 - Lite</option><option value="gemini-omni-1.1-flash">Omni 1.1 Flash</option></select></label><label><span>Fallback</span><select id="modalFallback"><option value="true">Aktif</option><option value="false">Nonaktif</option></select></label></div><div class="action-row"><button class="primary" id="saveScene">Simpan Scene</button><button class="secondary" id="regenerateScene">↻ Regenerate Scene</button><button class="danger" id="deleteScene">Hapus</button></div></div></div>
+  <div class="modal" id="modal"><div class="modal-card scene-inspector"><button class="modal-x" id="modalX" title="Tutup"><i class="fa-solid fa-xmark"></i></button><small>SCENE INSPECTOR • V1.4.2</small><div class="inspector-head"><h2 id="modalTitle">Scene</h2><span class="scene-status" id="modalSceneStatus">draft</span></div><video id="modalVideo" class="scene-video" controls playsinline hidden></video><label class="field"><span>Judul</span><input id="modalSceneTitle" /></label><label class="field"><span>Prompt</span><textarea id="modalPrompt" rows="7"></textarea></label><div class="form-grid compact inspector-router"><label><span>Regenerate dengan Vendor</span><select id="modalVendor"><option value="auto">Auto Router</option><option value="seedance">Seedance</option><option value="google">Google AI</option><option value="runway">Runway</option><option value="luma">Luma</option></select></label><label><span>Model Google</span><select id="modalGoogleModel"><option value="veo-3.1-generate-preview">Veo 3.1 - Quality</option><option value="veo-3.1-fast-generate-preview">Veo 3.1 - Fast</option><option value="veo-3.1-lite-generate-preview">Veo 3.1 - Lite</option><option value="gemini-omni-1.1-flash">Omni 1.1 Flash</option></select></label><label><span>Fallback</span><select id="modalFallback"><option value="true">Aktif</option><option value="false">Nonaktif</option></select></label></div><div class="action-row"><button class="primary" id="saveScene"><i class="fa-solid fa-floppy-disk"></i> Simpan Scene</button><button class="secondary" id="regenerateScene"><i class="fa-solid fa-rotate"></i> Regenerate Scene</button><button class="danger" id="deleteScene"><i class="fa-solid fa-trash"></i> Hapus</button></div></div></div>
   <script src="/app.js"></script>
 </body>
 </html>
