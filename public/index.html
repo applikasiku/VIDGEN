@@ -33,11 +33,11 @@
       </nav>
       <div class="side-card">
         <div class="side-glow"></div>
-        <small>VIDGEN V1.3</small>
+        <small>VIDGEN V1.4</small>
         <b>Satu lagu.<br/>Banyak imajinasi.</b>
         <p>Storyboard, multi-vendor routing, render queue & arsip Drive.</p>
       </div>
-      <div class="version">v1.3.0 • PWA</div>
+      <div class="version">v1.4.0 • PWA</div>
     </aside>
 
     <main class="main">
@@ -53,7 +53,7 @@
       </header>
 
       <section class="notice" id="notice">
-        <div><b>VIDGEN V1.3</b><span>Mode demo aktif sampai API vendor dikonfigurasi di Cloudflare Secrets.</span></div>
+        <div><b>VIDGEN V1.4</b><span>Mode demo aktif sampai API vendor dikonfigurasi di Cloudflare Secrets.</span></div>
         <button id="dismissNotice">×</button>
       </section>
 
@@ -233,7 +233,7 @@
     </main>
   </div>
   <div class="toast" id="toast"></div>
-  <div class="modal" id="modal"><div class="modal-card"><button class="modal-x" id="modalX">×</button><small>EDIT SCENE</small><h2 id="modalTitle">Scene</h2><label class="field"><span>Judul</span><input id="modalSceneTitle" /></label><label class="field"><span>Prompt</span><textarea id="modalPrompt" rows="7"></textarea></label><div class="action-row"><button class="primary" id="saveScene">Simpan Scene</button><button class="danger" id="deleteScene">Hapus</button></div></div></div>
+  <div class="modal" id="modal"><div class="modal-card scene-inspector"><button class="modal-x" id="modalX">×</button><small>SCENE INSPECTOR • V1.4</small><div class="inspector-head"><h2 id="modalTitle">Scene</h2><span class="scene-status" id="modalSceneStatus">draft</span></div><video id="modalVideo" class="scene-video" controls playsinline hidden></video><label class="field"><span>Judul</span><input id="modalSceneTitle" /></label><label class="field"><span>Prompt</span><textarea id="modalPrompt" rows="7"></textarea></label><div class="form-grid compact inspector-router"><label><span>Regenerate dengan Vendor</span><select id="modalVendor"><option value="auto">Auto Router</option><option value="seedance">Seedance</option><option value="veo">Google Veo</option><option value="runway">Runway</option><option value="luma">Luma</option></select></label><label><span>Fallback</span><select id="modalFallback"><option value="true">Aktif</option><option value="false">Nonaktif</option></select></label></div><div class="action-row"><button class="primary" id="saveScene">Simpan Scene</button><button class="secondary" id="regenerateScene">↻ Regenerate Scene</button><button class="danger" id="deleteScene">Hapus</button></div></div></div>
   <script src="/app.js"></script>
 </body>
 </html>
