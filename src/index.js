@@ -562,32 +562,60 @@ export default {
         if (!project) return withSession(json({ error: "Project tidak ditemukan." }, 404), session);
         const scenes = (await env.DATABASE_V2.prepare("SELECT * FROM scenes WHERE project_id=? ORDER BY scene_index").bind(projectId).all()).results || [];
         if (!scenes.length) return withSession(json({ error: "Proyek belum memiliki scene." }, 400), session);
+        const reference = await prepareReference(env, projectId, session.id, new URL(request.url).origin);
         const created = [];
-        for (const s of scenes.slice(0, 30)) {
-          const provider = pickProvider({ vendor: project.router_mode, priority: project.router_priority, sceneIndex: s.scene_index });
-          const jobId = uid("job");
-          const scene = { prompt: s.prompt, duration: s.duration_seconds, aspectRatio: project.aspect_ratio, resolution: project.resolution };
-          try {
-            const result = await createProviderTask(env, provider, scene, request);
-            await env.DATABASE_V2.prepare("INSERT INTO jobs (id,project_id,job_type,provider,provider_job_id,status,progress,payload_json,result_json) VALUES (?,?,?,?,?,?,?,?,?)")
-              .bind(jobId, projectId, "scene_generation", provider, result.taskId || null, result.demo ? "demo" : "submitted", result.demo ? 18 : 5, JSON.stringify(scene), JSON.stringify(result)).run();
-            await env.DATABASE_V2.prepare("UPDATE scenes SET vendor=?,provider_job_id=?,status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
-              .bind(provider, result.taskId || null, result.demo ? "demo" : "submitted", s.id).run();
-            created.push({ jobId, sceneId: s.id, provider, taskId: result.taskId, demo: Boolean(result.demo) });
-          } catch (error) {
-            await env.DATABASE_V2.prepare("INSERT INTO jobs (id,project_id,job_type,provider,status,progress,error_message,payload_json) VALUES (?,?,?,?,?,?,?,?)")
-              .bind(jobId, projectId, "scene_generation", provider, "failed", 0, String(error.message || error), JSON.stringify(scene)).run();
-            created.push({ jobId, sceneId: s.id, provider, error: String(error.message || error) });
-          }
+        for (const scene of scenes.slice(0, 30)) {
+          created.push(await submitSceneJob(env, project, scene, request, {
+            vendor: project.router_mode,
+            fallback: b.fallback !== false,
+            reference
+          }));
         }
-        const status = created.every(j => j.error) ? "failed" : created.every(j => j.demo) ? "demo" : "rendering";
+        const status = created.some(j => !j.error && !j.demo) ? "rendering" : created.every(j => j.demo) ? "demo" : "failed";
         await env.DATABASE_V2.prepare("UPDATE projects SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(status, projectId).run();
         return withSession(json({ ok: true, jobs: created }), session);
       }
+
+      const sceneMatch = url.pathname.match(/^\/api\/scenes\/([^/]+)(?:\/(output|regenerate))?$/);
+      if (sceneMatch) {
+        const sceneId = safeText(sceneMatch[1], 120);
+        const scene = await env.DATABASE_V2.prepare(
+          "SELECT s.*,p.user_id FROM scenes s JOIN projects p ON p.id=s.project_id WHERE s.id=? AND p.user_id=?"
+        ).bind(sceneId, session.id).first();
+        if (!scene) return withSession(json({ error: "Scene tidak ditemukan." }, 404), session);
+
+        if (sceneMatch[2] === "output" && request.method === "GET") {
+          if (!scene.output_r2_key) return withSession(json({ error: "Output scene belum tersedia." }, 404), session);
+          const object = await env.STORAGE_V2.get(scene.output_r2_key);
+          if (!object) return withSession(json({ error: "File output scene tidak ditemukan." }, 404), session);
+          return withSession(new Response(object.body, {
+            headers: {
+              "content-type": object.httpMetadata?.contentType || "video/mp4",
+              "cache-control": "private, max-age=300"
+            }
+          }), session);
+        }
+
+        if (sceneMatch[2] === "regenerate" && request.method === "POST") {
+          const b = await bodyJson(request);
+          const project = await env.DATABASE_V2.prepare("SELECT * FROM projects WHERE id=? AND user_id=?").bind(scene.project_id, session.id).first();
+          const reference = await prepareReference(env, project.id, session.id, new URL(request.url).origin);
+          const job = await submitSceneJob(env, project, scene, request, {
+            vendor: safeText(b.vendor || scene.vendor || project.router_mode, 40),
+            fallback: b.fallback !== false,
+            reference
+          });
+          await env.DATABASE_V2.prepare("UPDATE projects SET status='rendering',updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(project.id).run();
+          return withSession(json({ ok: true, job }), session);
+        }
+      }
+
       if (url.pathname === "/api/jobs") {
-        const projectId = url.searchParams.get("projectId") || "";
-        const rows = await env.DATABASE_V2.prepare("SELECT j.* FROM jobs j JOIN projects p ON p.id=j.project_id WHERE j.project_id=? AND p.user_id=? ORDER BY j.created_at DESC").bind(projectId, session.id).all();
-        return withSession(json({ jobs: rows.results || [] }), session);
+        const projectId = safeText(url.searchParams.get("projectId") || "", 120);
+        const project = await env.DATABASE_V2.prepare("SELECT id FROM projects WHERE id=? AND user_id=?").bind(projectId, session.id).first();
+        if (!project) return withSession(json({ error: "Project tidak ditemukan." }, 404), session);
+        const synced = await syncProjectJobs(env, projectId, session.id);
+        return withSession(json(synced), session);
       }
       if (url.pathname === "/api/storage/upload" && request.method === "POST") {
         const contentType = request.headers.get("content-type") || "application/octet-stream";
