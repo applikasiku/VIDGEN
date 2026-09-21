@@ -500,7 +500,7 @@ export default {
       return json({
         ok: true,
         app: env.APP_NAME || "VIDGEN",
-        version: env.APP_VERSION || "1.4.3",
+        version: env.APP_VERSION || "1.4.4",
         runtime: "cloudflare-workers",
         time: new Date().toISOString()
       });
@@ -518,7 +518,7 @@ export default {
       return json({
         ok: true,
         app: env.APP_NAME || "VIDGEN",
-        version: env.APP_VERSION || "1.4.3",
+        version: env.APP_VERSION || "1.4.4",
         providers
       });
     }
@@ -547,7 +547,7 @@ export default {
       return json({
         ok: checks.worker && checks.d1Binding && checks.r2Binding && checks.d1 === "ok",
         app: env.APP_NAME || "VIDGEN",
-        version: env.APP_VERSION || "1.4.3",
+        version: env.APP_VERSION || "1.4.4",
         checks,
         providers,
         databaseError
