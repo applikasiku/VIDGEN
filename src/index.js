@@ -281,7 +281,7 @@ async function persistProviderOutput(env, projectId, sceneId, provider, normaliz
   return key;
 }
 
-async function submitSceneJob(env, project, scene, request, { vendor, fallback = true, reference = null, excludeProviders = [] } = {}) {
+async function submitSceneJob(env, project, scene, request, { vendor, fallback = true, reference = null, excludeProviders = [], googleModel = null } = {}) {
   const candidates = providerCandidates({
     vendor: vendor || project.router_mode || "auto",
     priority: project.router_priority || "quality",
@@ -294,7 +294,7 @@ async function submitSceneJob(env, project, scene, request, { vendor, fallback =
     duration: Number(scene.duration_seconds || 8),
     aspectRatio: project.aspect_ratio,
     resolution: project.resolution,
-    googleModel: project.google_model || env.GOOGLE_AI_DEFAULT_MODEL || "veo-3.1-generate-preview",
+    googleModel: googleModel || project.google_model || env.GOOGLE_AI_DEFAULT_MODEL || "veo-3.1-generate-preview",
     fallback: Boolean(fallback)
   };
   const attempts = [];
@@ -732,7 +732,8 @@ export default {
           const job = await submitSceneJob(env, project, scene, request, {
             vendor: safeText(b.vendor || scene.vendor || project.router_mode, 40),
             fallback: b.fallback !== false,
-            reference
+            reference,
+            googleModel: safeText(b.googleModel || project.google_model || env.GOOGLE_AI_DEFAULT_MODEL || "veo-3.1-generate-preview", 120)
           });
           await env.DATABASE_V2.prepare("UPDATE projects SET status='rendering',updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(project.id).run();
           return withSession(json({ ok: true, job }), session);
