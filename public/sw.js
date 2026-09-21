@@ -1,4 +1,4 @@
-const CACHE='vidgen-v1.4.0-real-render';
+const CACHE='vidgen-v1.4.1-provider-diagnostics';
 const CORE=['/','/styles.css','/app.js','/manifest.webmanifest','/icons/icon.svg'];
 self.addEventListener('install',e=>e.waitUntil(Promise.all([caches.open(CACHE).then(c=>c.addAll(CORE)),self.skipWaiting()])));
 self.addEventListener('activate',e=>e.waitUntil(Promise.all([caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))),self.clients.claim()])));
