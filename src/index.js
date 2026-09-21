@@ -292,10 +292,16 @@ async function submitSceneJob(env, project, scene, request, { vendor, fallback =
     fallback: Boolean(fallback)
   };
   const attempts = [];
+  let demoAttempt = null;
 
   for (const provider of candidates) {
     try {
       const result = await createProviderTask(env, provider, payload, request, reference);
+      if (result.demo && fallback && candidates.length > 1) {
+        demoAttempt ||= { provider, result };
+        attempts.push({ provider, demo: true, note: result.note || "Provider belum dikonfigurasi; mencoba kandidat berikutnya." });
+        continue;
+      }
       const status = result.demo ? "demo" : "submitted";
       const progress = result.demo ? 32 : 5;
       await env.DATABASE_V2.prepare(
@@ -310,7 +316,18 @@ async function submitSceneJob(env, project, scene, request, { vendor, fallback =
     }
   }
 
-  const errorMessage = attempts.map(a => `${a.provider}: ${a.error}`).join(" | ") || "Tidak ada provider yang tersedia.";
+  if (demoAttempt) {
+    const { provider, result } = demoAttempt;
+    await env.DATABASE_V2.prepare(
+      "INSERT INTO jobs (id,project_id,scene_id,job_type,provider,provider_job_id,status,progress,payload_json,result_json) VALUES (?,?,?,?,?,?,?,?,?,?)"
+    ).bind(jobId, project.id, scene.id, "scene_generation", provider, result.taskId || null, "demo", 32, JSON.stringify(payload), JSON.stringify({ ...result, attempts })).run();
+    await env.DATABASE_V2.prepare(
+      "UPDATE scenes SET vendor=?,provider_job_id=?,status='demo',updated_at=CURRENT_TIMESTAMP WHERE id=?"
+    ).bind(provider, result.taskId || null, scene.id).run();
+    return { jobId, sceneId: scene.id, sceneIndex: scene.scene_index, provider, taskId: result.taskId, demo: true, status: "demo" };
+  }
+
+  const errorMessage = attempts.map(a => `${a.provider}: ${a.error || a.note || "gagal"}`).join(" | ") || "Tidak ada provider yang tersedia.";
   await env.DATABASE_V2.prepare(
     "INSERT INTO jobs (id,project_id,scene_id,job_type,provider,status,progress,error_message,payload_json,result_json) VALUES (?,?,?,?,?,?,?,?,?,?)"
   ).bind(jobId, project.id, scene.id, "scene_generation", candidates[0] || "auto", "failed", 0, errorMessage, JSON.stringify(payload), JSON.stringify({ attempts })).run();
