@@ -26,6 +26,9 @@
         <button class="nav-item" data-tab="assets"><i>▧</i><span>Aset</span></button>
         <button class="nav-item" data-tab="vendors"><i>◈</i><span>Vendor AI</span></button>
         <button class="nav-item" data-tab="storage"><i>☁</i><span>Storage</span></button>
+        <button class="nav-item" data-tab="templates"><i>▦</i><span>Template</span></button>
+        <button class="nav-item" data-tab="prompts"><i>✎</i><span>Prompt</span></button>
+        <button class="nav-item" data-tab="history"><i>↺</i><span>Riwayat</span></button>
         <button class="nav-item" data-tab="settings"><i>⚙</i><span>Pengaturan</span></button>
       </nav>
       <div class="side-card">
@@ -153,7 +156,51 @@
       <section class="view" id="view-assets"><article class="card page-card"><div class="section-title"><div><small>MEDIA LIBRARY</small><h2>Aset Media</h2></div></div><div class="placeholder"><b>Audio • Foto karakter • Reference image • Video scene</b><p>V1 sudah menyiapkan R2 sebagai object storage. Media manager lengkap dapat dikembangkan pada V1.1.</p></div></article></section>
       <section class="view" id="view-vendors"><article class="card page-card"><div class="section-title"><div><small>MULTI-VENDOR</small><h2>Status Provider AI</h2></div></div><div class="provider-grid" id="providerGrid"></div></article></section>
       <section class="view" id="view-storage"><article class="card page-card"><div class="section-title"><div><small>STORAGE</small><h2>R2 + Google Drive</h2></div></div><div class="storage-flow"><div><b>1</b><span>AI Vendor</span></div><i>→</i><div><b>2</b><span>Cloudflare R2</span></div><i>→</i><div><b>3</b><span>Composer</span></div><i>→</i><div><b>4</b><span>Google Drive</span></div></div><p class="muted">R2 dipakai untuk file kerja/render sementara. Google Drive menjadi arsip output permanen pengguna.</p></article></section>
-      <section class="view" id="view-settings"><article class="card page-card"><div class="section-title"><div><small>CONFIGURATION</small><h2>Pengaturan V1</h2></div></div><div class="settings-list"><div><b>Mode backend</b><span id="backendMode">Mendeteksi…</span></div><div><b>Default Drive folder</b><span>VIDGEN</span></div><div><b>Default output</b><span>1080p • 16:9</span></div><div><b>Fallback</b><span>Aktif</span></div></div></article></section>
+      <section class="view" id="view-templates">
+        <article class="card page-card">
+          <div class="section-title"><div><small>QUICK START</small><h2>Template Video</h2></div><span class="pill">Preset siap pakai</span></div>
+          <div class="feature-grid" id="templateGrid">
+            <button class="feature-card template-preset" data-style="cinematic" data-ratio="16:9" data-duration="8" data-genre="Cinematic music video" data-concept="Performance sinematik, close-up emosional, camera movement halus, visual konsisten mengikuti beat lagu."><i>🎬</i><b>Cinematic Music Video</b><small>16:9 • 8 detik/scene • cinematic</small></button>
+            <button class="feature-card template-preset" data-style="realistic" data-ratio="9:16" data-duration="5" data-genre="Short vertical music video" data-concept="Video vertikal dinamis untuk Reels, Shorts dan TikTok, hook kuat pada detik awal, cut cepat mengikuti beat."><i>📱</i><b>Short / Reels</b><small>9:16 • 5 detik/scene • realistic</small></button>
+            <button class="feature-card template-preset" data-style="stage" data-ratio="16:9" data-duration="8" data-genre="Live performance music video" data-concept="Panggung musik modern, lighting konser, medium dan close-up performer, crowd ambience, visual konsisten."><i>🎤</i><b>Music Stage</b><small>16:9 • 8 detik/scene • stage</small></button>
+            <button class="feature-card template-preset" data-style="retro" data-ratio="1:1" data-duration="5" data-genre="Retro visualizer" data-concept="Visualizer retro, tekstur analog, transisi musik, komposisi artistik dan gerakan kamera lembut."><i>📼</i><b>Retro Visualizer</b><small>1:1 • 5 detik/scene • retro</small></button>
+          </div>
+        </article>
+      </section>
+
+      <section class="view" id="view-prompts">
+        <article class="card page-card">
+          <div class="section-title"><div><small>CREATIVE LIBRARY</small><h2>Prompt Library</h2></div><span class="pill">Klik untuk gunakan</span></div>
+          <div class="feature-grid prompt-library">
+            <button class="feature-card prompt-preset" data-prompt="Cinematic night city performance, neon reflections, emotional close-up, smooth dolly shot, consistent character and wardrobe."><i>🌃</i><b>Neon Night</b><small>Kota malam • cinematic</small></button>
+            <button class="feature-card prompt-preset" data-prompt="Golden hour countryside, warm natural light, singer walking through green fields, aerial establishing shot, soft cinematic movement."><i>🌄</i><b>Golden Countryside</b><small>Alam • warm cinematic</small></button>
+            <button class="feature-card prompt-preset" data-prompt="Dark gothic stage, dramatic backlight, smoke, slow camera orbit, expressive performance, high contrast cinematic composition."><i>🕯</i><b>Gothic Stage</b><small>Gelap • dramatis</small></button>
+            <button class="feature-card prompt-preset" data-prompt="Energetic ska rocksteady performance, colorful street stage, dancing crowd, rhythmic handheld camera, upbeat tropical atmosphere."><i>🎺</i><b>Ska Street</b><small>Energik • musik jalanan</small></button>
+          </div>
+        </article>
+      </section>
+
+      <section class="view" id="view-history">
+        <article class="card page-card">
+          <div class="section-title"><div><small>ACTIVITY</small><h2>Riwayat Pembuatan</h2></div><button class="text-btn" id="refreshHistory">Refresh</button></div>
+          <div class="history-list" id="historyList"><div class="empty">Belum ada riwayat proyek.</div></div>
+        </article>
+      </section>
+
+      <section class="view" id="view-settings">
+        <article class="card page-card">
+          <div class="section-title"><div><small>CONFIGURATION</small><h2>Pengaturan VIDGEN</h2></div><span class="pill">Tersimpan di perangkat</span></div>
+          <div class="settings-grid">
+            <div class="setting-card"><span>Backend</span><b id="backendMode">Mendeteksi…</b><small>Status Worker produksi.</small></div>
+            <label class="setting-card"><span>Default Rasio</span><select id="settingRatio"><option>16:9</option><option>9:16</option><option>1:1</option></select><small>Dipakai saat membuka proyek baru.</small></label>
+            <label class="setting-card"><span>Default Resolusi</span><select id="settingResolution"><option>720p</option><option selected>1080p</option><option>4K</option></select><small>Kualitas output default.</small></label>
+            <label class="setting-card"><span>Durasi Scene</span><select id="settingDuration"><option value="5">5 detik</option><option value="8" selected>8 detik</option><option value="10">10 detik</option></select><small>Durasi scene baru.</small></label>
+            <label class="setting-card"><span>Vendor Default</span><select id="settingVendor"><option value="auto">Auto Router</option><option value="seedance">Seedance</option><option value="veo">Google Veo</option><option value="runway">Runway</option><option value="luma">Luma</option></select><small>Router dapat tetap memilih otomatis.</small></label>
+            <label class="setting-card switch-setting"><div><span>Simpan ke Drive</span><small>Aktifkan arsip otomatis hasil final.</small></div><input type="checkbox" id="settingDrive" checked /></label>
+          </div>
+          <div class="settings-actions"><button class="primary" id="saveSettings">Simpan Pengaturan</button><button class="secondary" id="resetSettings">Reset Default</button></div>
+        </article>
+      </section>
     </main>
   </div>
   <div class="toast" id="toast"></div>
