@@ -33,11 +33,11 @@
       </nav>
       <div class="side-card">
         <div class="side-glow"></div>
-        <small>VIDGEN V1.2</small>
+        <small>VIDGEN V1.3</small>
         <b>Satu lagu.<br/>Banyak imajinasi.</b>
         <p>Storyboard, multi-vendor routing, render queue & arsip Drive.</p>
       </div>
-      <div class="version">v1.2.0 • PWA</div>
+      <div class="version">v1.3.0 • PWA</div>
     </aside>
 
     <main class="main">
@@ -53,7 +53,7 @@
       </header>
 
       <section class="notice" id="notice">
-        <div><b>VIDGEN V1.2</b><span>Mode demo aktif sampai API vendor dikonfigurasi di Cloudflare Secrets.</span></div>
+        <div><b>VIDGEN V1.3</b><span>Mode demo aktif sampai API vendor dikonfigurasi di Cloudflare Secrets.</span></div>
         <button id="dismissNotice">×</button>
       </section>
 
@@ -120,7 +120,7 @@
                 <label><input type="checkbox" id="consistencyToggle" checked /> <span>Jaga konsistensi karakter</span></label>
               </div>
               <div class="reference-strip" id="referenceStrip"><div><small>REFERENCE IMAGE</small><b id="referenceName">Belum dipilih</b></div><button class="secondary" id="pickReference">Pilih dari Aset</button><button class="text-btn" id="clearReference">Hapus</button></div>
-              <div class="action-row"><button class="primary" id="storyboardBtn">✦ Buat Storyboard AI</button><button class="secondary" id="addSceneBtn">＋ Scene Manual</button></div>
+              <div class="action-row"><button class="primary" id="storyboardBtn">✦ Buat Storyboard AI</button><button class="secondary" id="addSceneBtn">＋ Scene Manual</button><button class="secondary" id="saveDraftBtn">💾 Simpan Draft</button></div>
               <div class="scene-list" id="sceneList"><div class="empty">Storyboard belum dibuat.</div></div>
             </article>
           </div>
@@ -172,7 +172,7 @@
         </div>
       </section>
 
-      <section class="view" id="view-projects"><article class="card page-card"><div class="section-title"><div><small>LIBRARY</small><h2>Proyek VIDGEN</h2></div></div><div class="project-grid" id="projectGrid"><div class="empty">Belum ada proyek tersimpan.</div></div></article></section>
+      <section class="view" id="view-projects"><article class="card page-card"><div class="section-title"><div><small>LIBRARY • D1 + R2</small><h2>Proyek VIDGEN</h2></div><button class="primary" id="newProjectBtn">＋ Proyek Baru</button></div><div class="project-grid" id="projectGrid"><div class="empty">Belum ada proyek tersimpan.</div></div></article></section>
       <section class="view" id="view-assets">
         <article class="card page-card">
           <div class="section-title"><div><small>MEDIA LIBRARY • R2</small><h2>Reference Image</h2></div><span class="pill">JPG • PNG • WEBP • maks 10 MB</span></div>
