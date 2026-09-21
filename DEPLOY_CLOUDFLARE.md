@@ -9,7 +9,7 @@
 5. Deploy command: `npm run deploy`.
 6. Deploy.
 
-VIDGEN memakai automatic provisioning untuk binding `DB` (D1) dan `MEDIA` (R2), sehingga Anda tidak perlu memasukkan database ID manual pada deployment pertama.
+VIDGEN production memakai binding D1 `DATABASE_V2` ke database `vidgen-db` dan binding R2 `STORAGE_V2` ke bucket `vidgen-media`, sesuai `wrangler.jsonc`.
 
 ## Opsi B — GitHub Actions
 
