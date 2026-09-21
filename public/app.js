@@ -343,7 +343,48 @@ async function generate(){
   }catch(e){toast(friendlyJobError(e.message))}
   finally{btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-rocket"></i> Generate Music Video'}
 }
-async function connectDrive(){if(!state.api)return toast('Deploy Worker terlebih dahulu untuk OAuth Google Drive.');if(state.drive.connected)return toast('Google Drive sudah terhubung.');try{const r=await api('/api/drive/connect');location.href=r.authUrl}catch(e){toast(e.message)}}
+async function connectDrive(){
+  if(!state.api)return toast('Worker belum terhubung.');
+  if(state.drive.connected)return toast('Google Drive sudah terhubung.');
+  if(state.drive.configured===false)return toast('Lengkapi GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, dan SESSION_SECRET di Cloudflare Secrets.');
+  try{const r=await api('/api/drive/connect');location.href=r.authUrl}catch(e){toast(e.message)}
+}
+async function refreshDriveStatus(){
+  if(!state.api)return;
+  try{state.drive=await api('/api/drive/status');renderDrive()}catch(e){toast(e.message)}
+}
+async function testDriveConnection(){
+  if(!state.drive.connected)return toast('Hubungkan Google Drive terlebih dahulu.');
+  const btn=$('#testDrive');if(btn)btn.disabled=true;
+  try{const r=await api('/api/drive/test',{method:'POST',body:'{}'});toast('Google Drive siap • folder /'+(r.folderName||'VIDGEN'));await refreshDriveStatus()}
+  catch(e){toast(e.message)}finally{if(btn)btn.disabled=false}
+}
+async function disconnectGoogleDrive(){
+  if(!state.drive.connected)return;
+  if(!confirm('Putuskan Google Drive dari VIDGEN?'))return;
+  try{await api('/api/drive/disconnect',{method:'POST',body:'{}'});state.drive={...state.drive,connected:false,email:null,name:null};renderDrive();toast('Google Drive diputuskan.')}catch(e){toast(e.message)}
+}
+async function archiveCompletedScenes({silent=false}={}){
+  if(state.driveArchiving)return;
+  if(!state.api||!state.currentProjectId){if(!silent)toast('Buka atau simpan project terlebih dahulu.');return}
+  if(!state.drive.connected){if(!silent)toast('Hubungkan Google Drive terlebih dahulu.');return}
+  const pending=state.scenes.filter(s=>s.outputR2Key&&!s.driveFileId);
+  if(!pending.length){if(!silent)toast('Semua scene selesai sudah tersimpan di Drive.');renderDrive();return}
+  state.driveArchiving=true;renderDrive();
+  let ok=0,failed=0;
+  for(let i=0;i<pending.length;i++){
+    const scene=pending[i];
+    const progress=$('#driveProgress');if(progress)progress.textContent='Mengunggah scene '+(i+1)+'/'+pending.length+': '+(scene.title||'Scene');
+    try{
+      const r=await api('/api/drive/archive-scene',{method:'POST',body:JSON.stringify({projectId:state.currentProjectId,sceneId:scene.id})});
+      scene.driveFileId=r.drive?.id||scene.driveFileId||null;
+      scene.driveWebViewLink=r.drive?.webViewLink||scene.driveWebViewLink||null;
+      ok++;
+    }catch(e){failed++;if(!silent)toast(e.message)}
+  }
+  state.driveArchiving=false;renderDrive();renderScenes();
+  if(!silent)toast(failed?(ok+' scene tersimpan • '+failed+' gagal'):(ok+' scene berhasil diarsipkan ke Google Drive.'));
+}
 function exportProject(){const data={app:'VIDGEN',version:'1.4.4',title:$('#projectTitle').value,genre:getGenreValue(),concept:$('#conceptInput').value,settings:{style:state.style,ratio:state.ratio,resolution:state.resolution,sceneDuration:state.duration,priority:state.priority,vendor:state.vendor,googleModel:state.googleModel,fallback:$('#fallbackToggle').checked,saveToDrive:$('#driveSaveToggle').checked},scenes:state.scenes};const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));a.download='VIDGEN-project.json';a.click();toast('Project JSON diekspor.')}
 const input=$('#audioInput'),drop=$('#dropzone'),player=$('#audioPlayer');
 function loadAudio(file){if(!file||!file.type.startsWith('audio/'))return toast('Pilih file audio.');if(state.audio?.url?.startsWith('blob:'))URL.revokeObjectURL(state.audio.url);const url=URL.createObjectURL(file);state.audio={file,url,name:file.name,r2Key:null,uploadPromise:null};player.src=url;$('#audioTitle').textContent=file.name;$('#audioMeta').textContent=`${(file.size/1024/1024).toFixed(2)} MB • menunggu metadata`;$('#audioStrip').classList.add('show');buildWave();player.onloadedmetadata=()=>{state.audioDuration=player.duration||0;$('#audioTime').textContent=fmt(state.audioDuration);updateStats()};if(state.api)state.audio.uploadPromise=uploadAudio(file);setStep(1);toast('Musik siap.')}
