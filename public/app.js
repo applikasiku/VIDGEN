@@ -208,7 +208,7 @@ async function saveProject(){
   if(state.currentProjectId)r=await api('/api/projects/'+encodeURIComponent(state.currentProjectId),{method:'PUT',body:JSON.stringify(p)});
   else r=await api('/api/projects',{method:'POST',body:JSON.stringify(p)});
   state.currentProjectId=r.id;
-  const row={id:r.id,title:p.title,genre:p.genre,status:'draft',aspect_ratio:p.aspectRatio,resolution:p.resolution,audio_name:p.audioName,duration_seconds:p.duration,created_at:new Date().toISOString(),updated_at:new Date().toISOString()};
+  const row={id:r.id,title:p.title,genre:p.genre,status:'draft',aspect_ratio:p.aspectRatio,resolution:p.resolution,audio_name:p.audioName,duration_seconds:p.duration,google_model:p.googleModel,created_at:new Date().toISOString(),updated_at:new Date().toISOString()};
   const ix=state.projects.findIndex(x=>x.id===r.id);if(ix>=0)state.projects[ix]={...state.projects[ix],...row};else state.projects.unshift(row);
   try{const detail=await api('/api/projects/'+encodeURIComponent(r.id));state.scenes=mapServerScenes(detail.scenes||[]);state.jobs=detail.jobs||state.jobs;state.referenceAsset=detail.reference||state.referenceAsset;renderScenes();renderJobs()}catch{}
   renderProjects();renderHistory();updateStats();return r.id
@@ -245,8 +245,8 @@ function applyPrefs(p=readPrefs()){
   if(sr)sr.value=state.ratio;if(sres)sres.value=state.resolution;if(sd)sd.value=String(state.duration);if(sv)sv.value=state.vendor;if(sgm)sgm.value=state.googleModel;if(sg)sg.checked=p.drive!==false;
   const r=$('#resolution'),d=$('#sceneDuration'),drive=$('#driveSaveToggle');if(r)r.value=state.resolution;if(d)d.value=String(state.duration);if(drive)drive.checked=p.drive!==false;
   $$('#ratioGroup button').forEach(b=>b.classList.toggle('active',b.dataset.value===state.ratio));
-  $$('#vendorList .vendor').forEach(b=>b.classList.toggle('active',b.dataset.vendor===state.vendor));
-  updateStats();
+  $('#vendorList .vendor').forEach(b=>b.classList.toggle('active',b.dataset.vendor===state.vendor));
+  syncGoogleModelVisibility();updateStats();
 }
 function renderHistory(){
   const box=$('#historyList');if(!box)return;
