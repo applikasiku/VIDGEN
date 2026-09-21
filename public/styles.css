@@ -167,3 +167,118 @@ input,textarea,select{min-height:38px}
 .form-grid>*,
 .style-grid>*,
 .vendor-list>*{min-width:0}
+
+/* VIDGEN FORM PANEL POLISH 2026-09-22 */
+
+/* Section rhythm */
+.section-card{border-radius:22px}
+.section-title{align-items:flex-start;margin-bottom:16px}
+.section-title h2{font-size:16px;line-height:1.2}
+.section-title .text-btn{margin-top:4px}
+
+/* Inputs and labels */
+label>span,.field>span,.mini-title{font-size:12px;line-height:1.35;color:#93a0bb}
+input,textarea,select{min-height:46px;font-size:14px;border-radius:14px;padding:12px 14px}
+textarea{min-height:96px;padding-top:14px;padding-bottom:14px}
+.form-grid{gap:14px}
+.field{margin-top:14px}
+
+/* Fix oversized checkbox chips */
+.analysis-options{display:flex;flex-wrap:wrap;gap:12px;margin:16px 0 18px}
+.analysis-options label{
+  display:inline-flex;
+  align-items:center;
+  gap:10px;
+  min-height:44px;
+  padding:10px 14px;
+  border:1px solid #2b3650;
+  border-radius:14px;
+  background:#0c1120;
+  color:#d8e0f0;
+  font-size:13px;
+  line-height:1.2;
+  cursor:pointer
+}
+.analysis-options label span{display:inline;margin:0;color:inherit;font-size:inherit}
+.analysis-options input[type="checkbox"]{
+  appearance:auto;
+  -webkit-appearance:checkbox;
+  width:16px;
+  height:16px;
+  min-height:0;
+  padding:0;
+  margin:0;
+  border:0;
+  border-radius:4px;
+  background:transparent;
+  box-shadow:none;
+  accent-color:#7a46ff;
+  flex:0 0 16px
+}
+
+/* Actions */
+.action-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:2px}
+.primary,.secondary,.danger{min-height:42px;padding:10px 16px;border-radius:12px;font-size:13px}
+
+/* Upload panel */
+.dropzone{min-height:98px;padding:16px 18px;border-radius:18px}
+.music-orb{width:52px;height:52px;flex:0 0 52px;border-radius:14px;font-size:20px}
+.drop-copy b{font-size:14px;line-height:1.3}
+.drop-copy span{font-size:12px;line-height:1.45}
+.browse{font-size:12px;padding:10px 14px;border-radius:11px}
+
+/* Generation panel */
+.sticky-card{border-radius:22px}
+.style-grid{gap:10px}
+.style{min-height:78px;border-radius:16px;padding:12px 8px;font-size:13px}
+.style span{font-size:18px;margin-bottom:8px}
+.segments{border-radius:14px}
+.segments button{min-height:50px;font-size:13px;padding:10px 8px}
+.vendor-list{gap:10px}
+.vendor{
+  grid-template-columns:40px minmax(0,1fr) auto;
+  min-height:64px;
+  border-radius:14px;
+  padding:10px 12px
+}
+.vendor-logo{width:36px;height:36px;border-radius:11px;font-size:13px}
+.vendor b{font-size:14px}
+.vendor small{font-size:11px;line-height:1.35}
+.vendor em{font-size:10px}
+.toggle{grid-template-columns:42px minmax(0,1fr);gap:10px;margin-top:12px}
+.toggle>span{width:38px;height:22px}
+.toggle>span:before{width:16px;height:16px;top:3px;left:3px}
+.toggle input:checked+span:before{left:19px}
+.toggle b{font-size:13px}
+.toggle small{font-size:11px;line-height:1.35}
+.estimate{margin:14px 0;padding:12px 14px;border-radius:14px;font-size:12px}
+.estimate b{font-size:13px}
+
+/* Sidebar visual balance */
+.side-card{border-radius:20px;padding:20px}
+.side-card b{font-size:17px}
+.side-card p{font-size:11px;line-height:1.6}
+
+/* Keep controls aligned in narrower desktop sizes */
+@media(max-width:1200px){
+  .workspace{grid-template-columns:minmax(0,1fr) minmax(320px,360px)}
+  .style{min-height:74px}
+}
+@media(max-width:1020px){
+  .workspace{grid-template-columns:1fr}
+  .vendor-list{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .style-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:760px){
+  .section-title h2{font-size:15px}
+  .dropzone{align-items:flex-start;min-height:auto}
+  .form-grid{grid-template-columns:1fr}
+  .analysis-options{gap:8px}
+  .analysis-options label{width:100%;justify-content:flex-start;min-height:42px;font-size:12px}
+  .style-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .vendor-list{grid-template-columns:1fr}
+  .segments.four{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .segments button{min-height:44px;font-size:12px}
+  .vendor b{font-size:13px}
+  .vendor small{font-size:10px}
+}
