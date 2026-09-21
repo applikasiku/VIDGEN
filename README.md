@@ -1,4 +1,4 @@
-# VIDGEN V1.1
+# VIDGEN V1.2
 
 VIDGEN adalah **AI Multi-Vendor Music Video Generator** berbasis Cloudflare Workers + Static Assets.
 
@@ -182,3 +182,18 @@ VIDGEN 1.1.0 memperbarui antarmuka dan workflow produksi dengan:
 - Perbaikan selector JavaScript pada Template, Prompt Library, dan preferensi agar semua fitur baru dapat dijalankan stabil.
 
 Domain produksi: `https://vidgen.purbalink.web.id`.
+
+
+## Rilis 1.2.0
+
+VIDGEN 1.2.0 menambahkan workflow produksi berikut:
+
+- Reference Image Library tersimpan privat di Cloudflare R2 dengan metadata di D1.
+- Upload JPG/PNG/WEBP maksimal 10 MB, preview melalui Worker, pilih sebagai reference, dan hapus aset.
+- Storyboard engine lebih kaya dengan mood, gaya kamera, shot, camera motion, lighting, beat sync, lyric sync, dan continuity guidance.
+- Reference image yang dipilih dipakai sebagai guidance identitas/style pada prompt storyboard.
+- Render Queue menampilkan ringkasan aktif/selesai/gagal, progress, error, tombol refresh, dan polling status berkala.
+- UI aset dan storyboard responsif untuk desktop, tablet, dan mobile.
+- Versi frontend/backend/PWA disinkronkan ke 1.2.0.
+
+Catatan: v1.2.0 menyimpan dan mengelola reference image secara nyata di R2. Direct image-conditioning ke setiap provider AI tetap mengikuti kemampuan/API provider dan dapat ditambahkan pada adapter provider berikutnya.
