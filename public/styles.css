@@ -1191,3 +1191,20 @@ html[data-theme="dark"] ::-webkit-scrollbar-thumb:hover{background:#405071}
   }
   html[data-theme="dark"] .nav-item.active{background:#162a52 !important}
 }
+
+/* VIDGEN GOOGLE DRIVE INTEGRATION 1.4.5 */
+.drive-status-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0 12px}
+.drive-status-row .status{font-size:8px}
+.drive-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.drive-actions .full{grid-column:1/-1}
+.drive-progress{display:block;margin-top:10px;color:var(--muted);font-size:9px;line-height:1.45}
+.scene-drive{display:inline-flex!important;align-items:center;gap:5px;margin-top:5px!important;color:#059669!important}
+.storage-note{display:flex;align-items:center;gap:12px;margin-top:16px;padding:13px 14px;border:1px solid #bfdbfe;border-radius:14px;background:#eff6ff}
+.storage-note>i{font-size:20px;color:#2563eb}
+.storage-note div{display:grid;gap:3px}.storage-note b{color:#0f172a}.storage-note small{color:#64748b}
+html[data-theme="dark"] .storage-note{background:#111a2c;border-color:#2f4773}
+html[data-theme="dark"] .storage-note>i{color:#7dd3fc}
+html[data-theme="dark"] .storage-note b{color:#f6f7ff}
+html[data-theme="dark"] .storage-note small{color:#8f9ab2}
+html[data-theme="dark"] .scene-drive{color:#61e0ae!important}
+@media(max-width:760px){.drive-actions{grid-template-columns:1fr}.drive-actions .full{grid-column:auto}.drive-status-row{align-items:flex-start;flex-direction:column}}
