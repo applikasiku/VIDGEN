@@ -1,4 +1,4 @@
-const state={api:false,providers:[],projects:[],assets:[],referenceAsset:null,drive:{connected:false},scenes:[],jobs:[],style:'cinematic',ratio:'16:9',resolution:'1080p',duration:8,priority:'quality',vendor:'auto',audio:null,audioDuration:0,currentProjectId:null,editing:null,jobTimer:null,projectLoading:false};
+const state={api:false,providers:[],projects:[],assets:[],referenceAsset:null,drive:{connected:false},scenes:[],jobs:[],style:'cinematic',ratio:'16:9',resolution:'1080p',duration:8,priority:'quality',vendor:'auto',googleModel:'veo-3.1-generate-preview',audio:null,audioDuration:0,currentProjectId:null,editing:null,jobTimer:null,projectLoading:false};
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const toast=m=>{const e=$('#toast');e.textContent=m;e.classList.add('show');clearTimeout(window.__toast);window.__toast=setTimeout(()=>e.classList.remove('show'),2300)};
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -27,12 +27,12 @@ async function bootstrap(){
       const notice=$('#notice span');if(notice)notice.textContent='Worker VIDGEN aktif, tetapi bootstrap database gagal. Status API vendor di bawah tetap dibaca langsung dari Cloudflare Secrets.';
       toast(diag?.databaseError?'D1 error terdeteksi. Status API key tetap berhasil dibaca.':'Bootstrap gagal. Status API key tetap berhasil dibaca.');
     }catch(statusError){
-      state.providers=['seedance','veo','runway','luma'].map(id=>({id,name:id[0].toUpperCase()+id.slice(1),configured:false,strengths:['status tidak dapat dibaca']}));
+      state.providers=['seedance','google','runway','luma'].map(id=>({id,name:id[0].toUpperCase()+id.slice(1),configured:false,strengths:['status tidak dapat dibaca']}));
       $('#cloudState').className='cloud-state demo';$('#cloudState').innerHTML='<span></span><b>Server tidak tersedia</b>';$('#backendMode').textContent='Worker/API tidak dapat dihubungi';toast('Tidak dapat terhubung ke Worker VIDGEN.');
     }
     $('#generateBtn').disabled=true;renderProviders();
   }
-  updateStats();
+  syncGoogleModelVisibility();updateStats();
 }
 function renderProviders(){const box=$('#providerGrid');box.innerHTML=state.providers.map(p=>`<div class="provider-card"><b>${esc(p.name)}</b><small>Model: ${esc(p.model||'configurable')}</small><small>${esc((p.strengths||[]).join(' • '))}</small><span class="status ${p.configured?'ok':''}">${p.configured?'API configured':'Demo / belum ada key'}</span></div>`).join('')||'<div class="empty">Provider belum tersedia.</div>'}
 function renderProjects(){
@@ -68,13 +68,19 @@ async function uploadAudio(file){
     toast(e.message);throw e;
   }
 }
+function syncGoogleModelVisibility(){
+  const panel=$('#googleModelPanel');
+  if(panel)panel.classList.toggle('hidden',!['auto','google'].includes(state.vendor));
+  const select=$('#googleModel');if(select)select.value=state.googleModel;
+  const setting=$('#settingGoogleModel');if(setting)setting.value=state.googleModel;
+}
 function setEditorControls(){
   $('#styleGrid .style').forEach(x=>x.classList.toggle('active',x.dataset.style===state.style));
   $('#ratioGroup button').forEach(x=>x.classList.toggle('active',x.dataset.value===state.ratio));
   $('#priorityGroup button').forEach(x=>x.classList.toggle('active',x.dataset.value===state.priority));
   $('#vendorList .vendor').forEach(x=>x.classList.toggle('active',x.dataset.vendor===state.vendor));
   $('#resolution').value=state.resolution;$('#sceneDuration').value=String(state.duration);
-  renderAssets();updateStats();
+  syncGoogleModelVisibility();renderAssets();updateStats();
 }
 async function openProject(id){
   if(!state.api||state.projectLoading)return;
@@ -83,7 +89,7 @@ async function openProject(id){
     const data=await api('/api/projects/'+encodeURIComponent(id));
     const p=data.project;
     state.currentProjectId=p.id;state.scenes=mapServerScenes(data.scenes||[]);state.jobs=data.jobs||[];state.referenceAsset=data.reference||null;
-    state.style=p.style||'cinematic';state.ratio=p.aspect_ratio||'16:9';state.resolution=p.resolution||'1080p';state.vendor=p.router_mode||'auto';state.priority=p.router_priority||'quality';state.audioDuration=Number(p.duration_seconds||0);
+    state.style=p.style||'cinematic';state.ratio=p.aspect_ratio||'16:9';state.resolution=p.resolution||'1080p';state.vendor=p.router_mode||'auto';state.priority=p.router_priority||'quality';state.googleModel=p.google_model||'veo-3.1-generate-preview';state.audioDuration=Number(p.duration_seconds||0);
     $('#projectTitle').value=p.title||'Videoclip Baru';setGenreValue(p.genre||'');$('#conceptInput').value=p.concept||'';$('#driveSaveToggle').checked=Boolean(p.save_to_drive);
     if(state.audio?.url?.startsWith('blob:'))URL.revokeObjectURL(state.audio.url);
     if(p.audio_r2_key){const url='/api/projects/'+encodeURIComponent(id)+'/audio';state.audio={name:p.audio_name||'Audio project',r2Key:p.audio_r2_key,url};player.src=url;$('#audioTitle').textContent=p.audio_name||'Audio project';$('#audioMeta').textContent='Tersimpan di Cloudflare R2';$('#audioStrip').classList.add('show');$('#audioTime').textContent=fmt(state.audioDuration)}
@@ -126,7 +132,7 @@ function openScene(id,autoplay=false){
   const s=state.scenes.find(x=>x.id===id);if(!s)return;state.editing=id;
   $('#modalTitle').textContent=s.title;$('#modalSceneTitle').value=s.title;$('#modalPrompt').value=s.prompt;
   const status=sceneStatusLabel(s);$('#modalSceneStatus').textContent=status;$('#modalSceneStatus').className='scene-status status-'+status;
-  $('#modalVendor').value=s.vendor||'auto';$('#modalFallback').value='true';
+  $('#modalVendor').value=s.vendor||'auto';$('#modalGoogleModel').value=state.googleModel;$('#modalFallback').value='true';
   const video=$('#modalVideo');video.pause();video.removeAttribute('src');video.hidden=!s.outputR2Key;
   if(s.outputR2Key){video.src='/api/scenes/'+encodeURIComponent(s.id)+'/output?v='+Date.now();video.load();if(autoplay)video.play().catch(()=>{})}
   $('#modal').classList.add('show')
@@ -136,7 +142,7 @@ async function regenerateScene(){
   const s=state.scenes.find(x=>x.id===state.editing);if(!s||!state.api)return;
   const btn=$('#regenerateScene');btn.disabled=true;btn.textContent='Mengirim…';
   try{
-    const r=await api('/api/scenes/'+encodeURIComponent(s.id)+'/regenerate',{method:'POST',body:JSON.stringify({vendor:$('#modalVendor').value,fallback:$('#modalFallback').value==='true'})});
+    const r=await api('/api/scenes/'+encodeURIComponent(s.id)+'/regenerate',{method:'POST',body:JSON.stringify({vendor:$('#modalVendor').value,googleModel:$('#modalGoogleModel').value,fallback:$('#modalFallback').value==='true'})});
     s.status=r.job?.demo?'demo':r.job?.error?'failed':'queued';s.vendor=r.job?.provider||$('#modalVendor').value;
     if(r.job)state.jobs.unshift(r.job);renderScenes();renderJobs();startJobPolling();openScene(s.id);toast(r.job?.error?'Regenerate gagal dikirim.':'Regenerate scene dikirim.');
   }catch(e){toast(e.message)}finally{btn.disabled=false;btn.textContent='↻ Regenerate Scene'}
@@ -196,7 +202,7 @@ async function uploadAssets(files){
 async function deleteAsset(id){const asset=state.assets.find(a=>a.id===id);if(!asset)return;try{const r=await fetch('/api/assets/'+encodeURIComponent(id),{method:'DELETE'});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||`HTTP ${r.status}`);state.assets=state.assets.filter(a=>a.id!==id);if(state.referenceAsset?.id===id)state.referenceAsset=null;renderAssets();toast('Aset dihapus.')}catch(e){toast(e.message)}}
 async function saveProject(){
   if(state.audio?.uploadPromise){try{await state.audio.uploadPromise}catch{}}
-  const p={title:$('#projectTitle').value||'Videoclip Baru',genre:getGenreValue(),concept:$('#conceptInput').value,audioName:state.audio?.name||state.audio?.file?.name||'',audioR2Key:state.audio?.r2Key||'',referenceAssetId:state.referenceAsset?.id||'',duration:state.audioDuration,style:state.style,aspectRatio:state.ratio,resolution:state.resolution,vendor:state.vendor,priority:state.priority,saveToDrive:$('#driveSaveToggle').checked,scenes:state.scenes};
+  const p={title:$('#projectTitle').value||'Videoclip Baru',genre:getGenreValue(),concept:$('#conceptInput').value,audioName:state.audio?.name||state.audio?.file?.name||'',audioR2Key:state.audio?.r2Key||'',referenceAssetId:state.referenceAsset?.id||'',duration:state.audioDuration,style:state.style,aspectRatio:state.ratio,resolution:state.resolution,vendor:state.vendor,priority:state.priority,googleModel:state.googleModel,saveToDrive:$('#driveSaveToggle').checked,scenes:state.scenes};
   if(!state.api)return state.currentProjectId||`demo_${Date.now()}`;
   let r;
   if(state.currentProjectId)r=await api('/api/projects/'+encodeURIComponent(state.currentProjectId),{method:'PUT',body:JSON.stringify(p)});
@@ -207,9 +213,9 @@ async function saveProject(){
   try{const detail=await api('/api/projects/'+encodeURIComponent(r.id));state.scenes=mapServerScenes(detail.scenes||[]);state.jobs=detail.jobs||state.jobs;state.referenceAsset=detail.reference||state.referenceAsset;renderScenes();renderJobs()}catch{}
   renderProjects();renderHistory();updateStats();return r.id
 }
-async function generate(){if(!state.api)return toast('Server belum terhubung. Muat ulang untuk mencoba lagi.');if(!state.scenes.length)return toast('Buat storyboard terlebih dahulu.');$('#generateBtn').disabled=true;$('#generateBtn').textContent='Menyiapkan render…';try{state.currentProjectId=await saveProject();if(state.api){const r=await api('/api/generate',{method:'POST',body:JSON.stringify({projectId:state.currentProjectId,fallback:$('#fallbackToggle').checked})});state.jobs=r.jobs||[];for(const j of state.jobs){const s=state.scenes.find(x=>x.id===(j.sceneId||j.scene_id));if(s){s.status=j.demo?'demo':j.error?'failed':'queued';s.vendor=j.provider||s.vendor}}renderScenes()}else{const route={quality:['seedance','veo','runway','luma'],balanced:['seedance','runway','veo','luma'],speed:['runway','luma','seedance','veo'],cost:['luma','seedance','runway','veo']}[state.priority];state.jobs=state.scenes.map((s,i)=>({provider:state.vendor==='auto'?route[i%route.length]:state.vendor,demo:true,status:'demo'}))}renderJobs();setStep(4);startJobPolling();toast(state.jobs.every(j=>j.demo)?'Simulasi dibuat. Belum ada video yang dihasilkan.':state.jobs.every(j=>j.error)?'Semua proses gagal. Periksa konfigurasi provider.':'Permintaan video dikirim.')}catch(e){toast(e.message)}finally{$('#generateBtn').disabled=false;$('#generateBtn').textContent='🚀 Generate Music Video'}}
+async function generate(){if(!state.api)return toast('Server belum terhubung. Muat ulang untuk mencoba lagi.');if(!state.scenes.length)return toast('Buat storyboard terlebih dahulu.');$('#generateBtn').disabled=true;$('#generateBtn').textContent='Menyiapkan render…';try{state.currentProjectId=await saveProject();if(state.api){const r=await api('/api/generate',{method:'POST',body:JSON.stringify({projectId:state.currentProjectId,fallback:$('#fallbackToggle').checked})});state.jobs=r.jobs||[];for(const j of state.jobs){const s=state.scenes.find(x=>x.id===(j.sceneId||j.scene_id));if(s){s.status=j.demo?'demo':j.error?'failed':'queued';s.vendor=j.provider||s.vendor}}renderScenes()}else{const route={quality:['google','seedance','runway','luma'],balanced:['seedance','google','runway','luma'],speed:['google','runway','luma','seedance'],cost:['google','luma','seedance','runway']}[state.priority];state.jobs=state.scenes.map((s,i)=>({provider:state.vendor==='auto'?route[i%route.length]:state.vendor,demo:true,status:'demo'}))}renderJobs();setStep(4);startJobPolling();toast(state.jobs.every(j=>j.demo)?'Simulasi dibuat. Belum ada video yang dihasilkan.':state.jobs.every(j=>j.error)?'Semua proses gagal. Periksa konfigurasi provider.':'Permintaan video dikirim.')}catch(e){toast(e.message)}finally{$('#generateBtn').disabled=false;$('#generateBtn').textContent='🚀 Generate Music Video'}}
 async function connectDrive(){if(!state.api)return toast('Deploy Worker terlebih dahulu untuk OAuth Google Drive.');if(state.drive.connected)return toast('Google Drive sudah terhubung.');try{const r=await api('/api/drive/connect');location.href=r.authUrl}catch(e){toast(e.message)}}
-function exportProject(){const data={app:'VIDGEN',version:'1.4.0',title:$('#projectTitle').value,genre:getGenreValue(),concept:$('#conceptInput').value,settings:{style:state.style,ratio:state.ratio,resolution:state.resolution,sceneDuration:state.duration,priority:state.priority,vendor:state.vendor,fallback:$('#fallbackToggle').checked,saveToDrive:$('#driveSaveToggle').checked},scenes:state.scenes};const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));a.download='VIDGEN-project.json';a.click();toast('Project JSON diekspor.')}
+function exportProject(){const data={app:'VIDGEN',version:'1.4.1',title:$('#projectTitle').value,genre:getGenreValue(),concept:$('#conceptInput').value,settings:{style:state.style,ratio:state.ratio,resolution:state.resolution,sceneDuration:state.duration,priority:state.priority,vendor:state.vendor,googleModel:state.googleModel,fallback:$('#fallbackToggle').checked,saveToDrive:$('#driveSaveToggle').checked},scenes:state.scenes};const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));a.download='VIDGEN-project.json';a.click();toast('Project JSON diekspor.')}
 const input=$('#audioInput'),drop=$('#dropzone'),player=$('#audioPlayer');
 function loadAudio(file){if(!file||!file.type.startsWith('audio/'))return toast('Pilih file audio.');if(state.audio?.url?.startsWith('blob:'))URL.revokeObjectURL(state.audio.url);const url=URL.createObjectURL(file);state.audio={file,url,name:file.name,r2Key:null,uploadPromise:null};player.src=url;$('#audioTitle').textContent=file.name;$('#audioMeta').textContent=`${(file.size/1024/1024).toFixed(2)} MB • menunggu metadata`;$('#audioStrip').classList.add('show');buildWave();player.onloadedmetadata=()=>{state.audioDuration=player.duration||0;$('#audioTime').textContent=fmt(state.audioDuration);updateStats()};if(state.api)state.audio.uploadPromise=uploadAudio(file);setStep(1);toast('Musik siap.')}
 input.onchange=e=>loadAudio(e.target.files[0]);['dragenter','dragover'].forEach(x=>drop.addEventListener(x,e=>{e.preventDefault();drop.classList.add('drag')}));['dragleave','drop'].forEach(x=>drop.addEventListener(x,e=>{e.preventDefault();drop.classList.remove('drag')}));drop.addEventListener('drop',e=>loadAudio(e.dataTransfer.files[0]));
@@ -218,7 +224,8 @@ $('#storyboardBtn').onclick=makeStoryboard;$('#resetScenes').onclick=()=>{state.
 $$('#styleGrid .style').forEach(b=>b.onclick=()=>{$$('#styleGrid .style').forEach(x=>x.classList.remove('active'));b.classList.add('active');state.style=b.dataset.style});
 $$('#ratioGroup button').forEach(b=>b.onclick=()=>{$$('#ratioGroup button').forEach(x=>x.classList.remove('active'));b.classList.add('active');state.ratio=b.dataset.value;renderScenes()});
 $$('#priorityGroup button').forEach(b=>b.onclick=()=>{$$('#priorityGroup button').forEach(x=>x.classList.remove('active'));b.classList.add('active');state.priority=b.dataset.value});
-$$('#vendorList .vendor').forEach(b=>b.onclick=()=>{$$('#vendorList .vendor').forEach(x=>x.classList.remove('active'));b.classList.add('active');state.vendor=b.dataset.vendor;setStep(3);updateStats();renderScenes()});
+$$('#vendorList .vendor').forEach(b=>b.onclick=()=>{$$('#vendorList .vendor').forEach(x=>x.classList.remove('active'));b.classList.add('active');state.vendor=b.dataset.vendor;syncGoogleModelVisibility();setStep(3);updateStats();renderScenes()});
+$('#googleModel')?.addEventListener('change',e=>{state.googleModel=e.target.value;const m=$('#modalGoogleModel');if(m)m.value=state.googleModel;});
 $('#resolution').onchange=e=>state.resolution=e.target.value;$('#sceneDuration').onchange=e=>{state.duration=Number(e.target.value);state.scenes.forEach((s,i)=>{s.duration=state.duration;s.start=i*state.duration});renderScenes()};
 $('#generateBtn').onclick=generate;$('#saveDraftBtn')?.addEventListener('click',saveDraft);$('#newProjectBtn')?.addEventListener('click',()=>newProject(true));$('#connectDrive').onclick=connectDrive;$('#driveQuick').onclick=()=>{$('[data-tab="storage"]').click()};$('#exportBtn').onclick=exportProject;$('#dismissNotice').onclick=()=>$('#notice').remove();
 $('#genreSelect')?.addEventListener('change',syncGenreField);
@@ -230,12 +237,12 @@ $('#refreshJobs')?.addEventListener('click',()=>refreshJobs(false));
 $('#modalX').onclick=closeModal;$('#regenerateScene')?.addEventListener('click',regenerateScene);$('#modal').onclick=e=>{if(e.target.id==='modal')closeModal()};$('#saveScene').onclick=()=>{const s=state.scenes.find(x=>x.id===state.editing);if(!s)return;s.title=$('#modalSceneTitle').value.trim()||s.title;s.prompt=$('#modalPrompt').value.trim()||s.prompt;renderScenes();closeModal();toast('Scene diperbarui.')};$('#deleteScene').onclick=()=>{state.scenes=state.scenes.filter(x=>x.id!==state.editing).map((s,i)=>({...s,index:i,start:i*state.duration}));renderScenes();closeModal();toast('Scene dihapus.')};
 $$('.nav-item').forEach(b=>b.onclick=()=>{$$('.nav-item').forEach(x=>x.classList.remove('active'));b.classList.add('active');$$('.view').forEach(v=>v.classList.remove('active'));$(`#view-${b.dataset.tab}`).classList.add('active');window.scrollTo({top:0,behavior:'smooth'})});
 // VIDGEN extra UI features 2026-09-22
-const DEFAULT_PREFS={ratio:'16:9',resolution:'1080p',duration:8,vendor:'auto',drive:true};
+const DEFAULT_PREFS={ratio:'16:9',resolution:'1080p',duration:8,vendor:'auto',googleModel:'veo-3.1-generate-preview',drive:true};
 function readPrefs(){try{return {...DEFAULT_PREFS,...JSON.parse(localStorage.getItem('vidgen:prefs')||'{}')}}catch{return {...DEFAULT_PREFS}}}
 function applyPrefs(p=readPrefs()){
-  state.ratio=p.ratio; state.resolution=p.resolution; state.duration=Number(p.duration)||8; state.vendor=p.vendor||'auto';
-  const sr=$('#settingRatio'),sres=$('#settingResolution'),sd=$('#settingDuration'),sv=$('#settingVendor'),sg=$('#settingDrive');
-  if(sr)sr.value=state.ratio;if(sres)sres.value=state.resolution;if(sd)sd.value=String(state.duration);if(sv)sv.value=state.vendor;if(sg)sg.checked=p.drive!==false;
+  state.ratio=p.ratio; state.resolution=p.resolution; state.duration=Number(p.duration)||8; state.vendor=p.vendor||'auto'; state.googleModel=p.googleModel||'veo-3.1-generate-preview';
+  const sr=$('#settingRatio'),sres=$('#settingResolution'),sd=$('#settingDuration'),sv=$('#settingVendor'),sgm=$('#settingGoogleModel'),sg=$('#settingDrive');
+  if(sr)sr.value=state.ratio;if(sres)sres.value=state.resolution;if(sd)sd.value=String(state.duration);if(sv)sv.value=state.vendor;if(sgm)sgm.value=state.googleModel;if(sg)sg.checked=p.drive!==false;
   const r=$('#resolution'),d=$('#sceneDuration'),drive=$('#driveSaveToggle');if(r)r.value=state.resolution;if(d)d.value=String(state.duration);if(drive)drive.checked=p.drive!==false;
   $$('#ratioGroup button').forEach(b=>b.classList.toggle('active',b.dataset.value===state.ratio));
   $$('#vendorList .vendor').forEach(b=>b.classList.toggle('active',b.dataset.vendor===state.vendor));
@@ -257,7 +264,7 @@ $$('.template-preset').forEach(b=>b.onclick=()=>{
 $$('.prompt-preset').forEach(b=>b.onclick=()=>{const target=$('#conceptInput');target.value=(target.value?target.value+' ':'')+(b.dataset.prompt||'');$('[data-tab="create"]').click();target.focus();toast('Prompt ditambahkan ke konsep video.')});
 $('#refreshHistory')?.addEventListener('click',()=>{renderHistory();toast('Riwayat diperbarui.')});
 $('#saveSettings')?.addEventListener('click',()=>{
-  const p={ratio:$('#settingRatio').value,resolution:$('#settingResolution').value,duration:Number($('#settingDuration').value),vendor:$('#settingVendor').value,drive:$('#settingDrive').checked};
+  const p={ratio:$('#settingRatio').value,resolution:$('#settingResolution').value,duration:Number($('#settingDuration').value),vendor:$('#settingVendor').value,googleModel:$('#settingGoogleModel').value,drive:$('#settingDrive').checked};
   localStorage.setItem('vidgen:prefs',JSON.stringify(p));applyPrefs(p);toast('Pengaturan disimpan.');
 });
 $('#resetSettings')?.addEventListener('click',()=>{localStorage.removeItem('vidgen:prefs');applyPrefs(DEFAULT_PREFS);toast('Pengaturan dikembalikan ke default.')});
