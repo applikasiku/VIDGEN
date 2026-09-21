@@ -3,6 +3,22 @@ const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const toast=m=>{const e=$('#toast');e.textContent=m;e.classList.add('show');clearTimeout(window.__toast);window.__toast=setTimeout(()=>e.classList.remove('show'),2300)};
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const fmt=n=>{n=Math.max(0,Math.round(n||0));return `${String(Math.floor(n/60)).padStart(2,'0')}:${String(n%60).padStart(2,'0')}`};
+const THEME_KEY='vidgen:theme';
+function normalizeTheme(value){return value==='dark'?'dark':'light'}
+function currentTheme(){try{return normalizeTheme(document.documentElement.dataset.theme||localStorage.getItem(THEME_KEY)||'light')}catch{return 'light'}}
+function applyTheme(theme,{persist=true}={}){
+  const value=normalizeTheme(theme);
+  document.documentElement.dataset.theme=value;
+  if(persist){try{localStorage.setItem(THEME_KEY,value)}catch{}}
+  const meta=document.querySelector('meta[name="theme-color"]');if(meta)meta.setAttribute('content',value==='dark'?'#070811':'#ffffff');
+  const btn=$('#themeToggle'),icon=$('#themeIcon'),setting=$('#settingTheme');
+  if(icon)icon.className=value==='dark'?'fa-solid fa-sun':'fa-solid fa-moon';
+  if(btn){const next=value==='dark'?'terang':'gelap';btn.title=`Mode ${next[0].toUpperCase()+next.slice(1)}`;btn.setAttribute('aria-label',`Ganti ke mode ${next}`)}
+  if(setting)setting.value=value;
+  return value
+}
+function toggleTheme(){return applyTheme(currentTheme()==='dark'?'light':'dark')}
+
 function getGenreValue(){const s=$('#genreSelect'),c=$('#genreCustom');if(!s)return '';return s.value==='Lainnya'?(c?.value||'').trim():s.value}
 function setGenreValue(value=''){const s=$('#genreSelect'),c=$('#genreCustom');if(!s)return;const options=[...s.options].map(o=>o.value);if(options.includes(value)){s.value=value;if(c)c.value=''}else{s.value='Lainnya';if(c)c.value=value}syncGenreField()}
 function syncGenreField(){const s=$('#genreSelect'),w=$('#genreCustomWrap');if(!s||!w)return;w.classList.toggle('show',s.value==='Lainnya')}
@@ -312,7 +328,7 @@ async function generate(){
   finally{btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-rocket"></i> Generate Music Video'}
 }
 async function connectDrive(){if(!state.api)return toast('Deploy Worker terlebih dahulu untuk OAuth Google Drive.');if(state.drive.connected)return toast('Google Drive sudah terhubung.');try{const r=await api('/api/drive/connect');location.href=r.authUrl}catch(e){toast(e.message)}}
-function exportProject(){const data={app:'VIDGEN',version:'1.4.3',title:$('#projectTitle').value,genre:getGenreValue(),concept:$('#conceptInput').value,settings:{style:state.style,ratio:state.ratio,resolution:state.resolution,sceneDuration:state.duration,priority:state.priority,vendor:state.vendor,googleModel:state.googleModel,fallback:$('#fallbackToggle').checked,saveToDrive:$('#driveSaveToggle').checked},scenes:state.scenes};const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));a.download='VIDGEN-project.json';a.click();toast('Project JSON diekspor.')}
+function exportProject(){const data={app:'VIDGEN',version:'1.4.4',title:$('#projectTitle').value,genre:getGenreValue(),concept:$('#conceptInput').value,settings:{style:state.style,ratio:state.ratio,resolution:state.resolution,sceneDuration:state.duration,priority:state.priority,vendor:state.vendor,googleModel:state.googleModel,fallback:$('#fallbackToggle').checked,saveToDrive:$('#driveSaveToggle').checked},scenes:state.scenes};const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));a.download='VIDGEN-project.json';a.click();toast('Project JSON diekspor.')}
 const input=$('#audioInput'),drop=$('#dropzone'),player=$('#audioPlayer');
 function loadAudio(file){if(!file||!file.type.startsWith('audio/'))return toast('Pilih file audio.');if(state.audio?.url?.startsWith('blob:'))URL.revokeObjectURL(state.audio.url);const url=URL.createObjectURL(file);state.audio={file,url,name:file.name,r2Key:null,uploadPromise:null};player.src=url;$('#audioTitle').textContent=file.name;$('#audioMeta').textContent=`${(file.size/1024/1024).toFixed(2)} MB • menunggu metadata`;$('#audioStrip').classList.add('show');buildWave();player.onloadedmetadata=()=>{state.audioDuration=player.duration||0;$('#audioTime').textContent=fmt(state.audioDuration);updateStats()};if(state.api)state.audio.uploadPromise=uploadAudio(file);setStep(1);toast('Musik siap.')}
 input.onchange=e=>loadAudio(e.target.files[0]);['dragenter','dragover'].forEach(x=>drop.addEventListener(x,e=>{e.preventDefault();drop.classList.add('drag')}));['dragleave','drop'].forEach(x=>drop.addEventListener(x,e=>{e.preventDefault();drop.classList.remove('drag')}));drop.addEventListener('drop',e=>loadAudio(e.dataTransfer.files[0]));
@@ -325,6 +341,7 @@ $$('#vendorList .vendor').forEach(b=>b.onclick=()=>{$$('#vendorList .vendor').fo
 $('#googleModel')?.addEventListener('change',e=>{state.googleModel=e.target.value;const m=$('#modalGoogleModel');if(m)m.value=state.googleModel;});
 $('#resolution').onchange=e=>state.resolution=e.target.value;$('#sceneDuration').onchange=e=>{state.duration=Number(e.target.value);state.scenes.forEach((s,i)=>{s.duration=state.duration;s.start=i*state.duration});renderScenes()};
 $('#generateBtn').onclick=generate;$('#saveDraftBtn')?.addEventListener('click',saveDraft);$('#newProjectBtn')?.addEventListener('click',()=>newProject(true));$('#connectDrive').onclick=connectDrive;$('#driveQuick').onclick=()=>{$('[data-tab="storage"]').click()};$('#exportBtn').onclick=exportProject;$('#dismissNotice').onclick=()=>$('#notice').remove();
+$('#themeToggle')?.addEventListener('click',()=>{const theme=toggleTheme();const prefs=readPrefs();prefs.theme=theme;try{localStorage.setItem('vidgen:prefs',JSON.stringify(prefs))}catch{};toast(theme==='dark'?'Mode gelap aktif.':'Mode terang aktif.')});
 $('#genreSelect')?.addEventListener('change',syncGenreField);
 syncGenreField();
 $('#assetInput')?.addEventListener('change',e=>uploadAssets(e.target.files));
@@ -335,12 +352,13 @@ $('#refreshJobs')?.addEventListener('click',()=>refreshJobs(false));
 $('#modalX').onclick=closeModal;$('#regenerateScene')?.addEventListener('click',regenerateScene);$('#modal').onclick=e=>{if(e.target.id==='modal')closeModal()};$('#saveScene').onclick=()=>{const s=state.scenes.find(x=>x.id===state.editing);if(!s)return;s.title=$('#modalSceneTitle').value.trim()||s.title;s.prompt=$('#modalPrompt').value.trim()||s.prompt;renderScenes();closeModal();toast('Scene diperbarui.')};$('#deleteScene').onclick=()=>{state.scenes=state.scenes.filter(x=>x.id!==state.editing).map((s,i)=>({...s,index:i,start:i*state.duration}));renderScenes();closeModal();toast('Scene dihapus.')};
 $$('.nav-item').forEach(b=>b.onclick=()=>{$$('.nav-item').forEach(x=>x.classList.remove('active'));b.classList.add('active');$$('.view').forEach(v=>v.classList.remove('active'));$(`#view-${b.dataset.tab}`).classList.add('active');window.scrollTo({top:0,behavior:'smooth'})});
 // VIDGEN extra UI features 2026-09-22
-const DEFAULT_PREFS={ratio:'16:9',resolution:'1080p',duration:8,vendor:'auto',googleModel:'veo-3.1-generate-preview',drive:true};
-function readPrefs(){try{return {...DEFAULT_PREFS,...JSON.parse(localStorage.getItem('vidgen:prefs')||'{}')}}catch{return {...DEFAULT_PREFS}}}
+const DEFAULT_PREFS={theme:'light',ratio:'16:9',resolution:'1080p',duration:8,vendor:'auto',googleModel:'veo-3.1-generate-preview',drive:true};
+function readPrefs(){try{return {...DEFAULT_PREFS,theme:currentTheme(),...JSON.parse(localStorage.getItem('vidgen:prefs')||'{}')}}catch{return {...DEFAULT_PREFS,theme:currentTheme()}}}
 function applyPrefs(p=readPrefs()){
   state.ratio=p.ratio; state.resolution=p.resolution; state.duration=Number(p.duration)||8; state.vendor=p.vendor||'auto'; state.googleModel=p.googleModel||'veo-3.1-generate-preview';
-  const sr=$('#settingRatio'),sres=$('#settingResolution'),sd=$('#settingDuration'),sv=$('#settingVendor'),sgm=$('#settingGoogleModel'),sg=$('#settingDrive');
-  if(sr)sr.value=state.ratio;if(sres)sres.value=state.resolution;if(sd)sd.value=String(state.duration);if(sv)sv.value=state.vendor;if(sgm)sgm.value=state.googleModel;if(sg)sg.checked=p.drive!==false;
+  applyTheme(p.theme||currentTheme(),{persist:false});
+  const st=$('#settingTheme'),sr=$('#settingRatio'),sres=$('#settingResolution'),sd=$('#settingDuration'),sv=$('#settingVendor'),sgm=$('#settingGoogleModel'),sg=$('#settingDrive');
+  if(st)st.value=currentTheme();if(sr)sr.value=state.ratio;if(sres)sres.value=state.resolution;if(sd)sd.value=String(state.duration);if(sv)sv.value=state.vendor;if(sgm)sgm.value=state.googleModel;if(sg)sg.checked=p.drive!==false;
   const r=$('#resolution'),d=$('#sceneDuration'),drive=$('#driveSaveToggle');if(r)r.value=state.resolution;if(d)d.value=String(state.duration);if(drive)drive.checked=p.drive!==false;
   $$('#ratioGroup button').forEach(b=>b.classList.toggle('active',b.dataset.value===state.ratio));
   $$('#vendorList .vendor').forEach(b=>b.classList.toggle('active',b.dataset.vendor===state.vendor));
@@ -361,11 +379,13 @@ $$('.template-preset').forEach(b=>b.onclick=()=>{
 });
 $$('.prompt-preset').forEach(b=>b.onclick=()=>{const target=$('#conceptInput');target.value=(target.value?target.value+' ':'')+(b.dataset.prompt||'');$('[data-tab="create"]').click();target.focus();toast('Prompt ditambahkan ke konsep video.')});
 $('#refreshHistory')?.addEventListener('click',()=>{renderHistory();toast('Riwayat diperbarui.')});
+$('#settingTheme')?.addEventListener('change',e=>applyTheme(e.target.value));
 $('#saveSettings')?.addEventListener('click',()=>{
-  const p={ratio:$('#settingRatio').value,resolution:$('#settingResolution').value,duration:Number($('#settingDuration').value),vendor:$('#settingVendor').value,googleModel:$('#settingGoogleModel').value,drive:$('#settingDrive').checked};
-  localStorage.setItem('vidgen:prefs',JSON.stringify(p));applyPrefs(p);toast('Pengaturan disimpan.');
+  const p={theme:$('#settingTheme').value,ratio:$('#settingRatio').value,resolution:$('#settingResolution').value,duration:Number($('#settingDuration').value),vendor:$('#settingVendor').value,googleModel:$('#settingGoogleModel').value,drive:$('#settingDrive').checked};
+  localStorage.setItem('vidgen:prefs',JSON.stringify(p));applyTheme(p.theme);applyPrefs(p);toast('Pengaturan disimpan.');
 });
-$('#resetSettings')?.addEventListener('click',()=>{localStorage.removeItem('vidgen:prefs');applyPrefs(DEFAULT_PREFS);toast('Pengaturan dikembalikan ke default.')});
+$('#resetSettings')?.addEventListener('click',()=>{localStorage.removeItem('vidgen:prefs');applyTheme(DEFAULT_PREFS.theme);applyPrefs(DEFAULT_PREFS);toast('Pengaturan dikembalikan ke default.')});
+applyTheme(currentTheme(),{persist:false});
 applyPrefs();
 renderHistory();
 
