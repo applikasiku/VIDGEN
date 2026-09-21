@@ -1,4 +1,4 @@
-// Cloudflare build trigger: VIDGEN v1.4.2 current config
+// Cloudflare build trigger: VIDGEN v1.4.3 current config
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "vidgen",
@@ -32,7 +32,7 @@
   "vars": {
     "APP_NAME": "VIDGEN",
     "APP_ENV": "production",
-    "APP_VERSION": "1.4.2",
+    "APP_VERSION": "1.4.3",
     "GOOGLE_DRIVE_FOLDER": "VIDGEN",
     "LUMA_MODEL": "ray-2",
     "RUNWAY_API_BASE": "https://api.dev.runwayml.com/v1",
