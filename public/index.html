@@ -33,11 +33,11 @@
       </nav>
       <div class="side-card">
         <div class="side-glow"></div>
-        <small>VIDGEN V1.4</small>
+        <small>VIDGEN V1.4.1</small>
         <b>Satu lagu.<br/>Banyak imajinasi.</b>
         <p>Storyboard, multi-vendor routing, render queue & arsip Drive.</p>
       </div>
-      <div class="version">v1.4.0 • PWA</div>
+      <div class="version">v1.4.1 • PWA</div>
     </aside>
 
     <main class="main">
@@ -53,7 +53,7 @@
       </header>
 
       <section class="notice" id="notice">
-        <div><b>VIDGEN V1.4</b><span>Status produksi dan provider dibaca langsung dari Cloudflare Worker.</span></div>
+        <div><b>VIDGEN V1.4.1</b><span>Status produksi dan provider dibaca langsung dari Cloudflare Worker.</span></div>
         <button id="dismissNotice">×</button>
       </section>
 
@@ -149,9 +149,19 @@
               <div class="vendor-list" id="vendorList">
                 <button class="vendor active" data-vendor="auto"><span class="vendor-logo auto">A</span><div><b>Auto Router</b><small>VIDGEN memilih vendor per scene</small></div><em>BEST</em></button>
                 <button class="vendor" data-vendor="seedance"><span class="vendor-logo seed">S</span><div><b>Seedance</b><small>Music video & multimodal</small></div><em>AI</em></button>
-                <button class="vendor" data-vendor="veo"><span class="vendor-logo veo">V</span><div><b>Google Veo</b><small>Cinematic & quality</small></div><em>AI</em></button>
+                <button class="vendor" data-vendor="google"><span class="vendor-logo veo">G</span><div><b>Google AI</b><small>Veo 3.1 + Omni Flash</small></div><em>4 MODEL</em></button>
                 <button class="vendor" data-vendor="runway"><span class="vendor-logo run">R</span><div><b>Runway</b><small>Creative workflow</small></div><em>AI</em></button>
                 <button class="vendor" data-vendor="luma"><span class="vendor-logo luma">L</span><div><b>Luma</b><small>Fast camera motion</small></div><em>AI</em></button>
+              </div>
+              <div class="google-model-panel" id="googleModelPanel">
+                <label class="mini-title" for="googleModel">Model Google</label>
+                <select id="googleModel">
+                  <option value="veo-3.1-generate-preview">Veo 3.1 - Quality</option>
+                  <option value="veo-3.1-fast-generate-preview">Veo 3.1 - Fast</option>
+                  <option value="veo-3.1-lite-generate-preview">Veo 3.1 - Lite</option>
+                  <option value="gemini-omni-1.1-flash">Omni 1.1 Flash</option>
+                </select>
+                <small id="googleModelHint">Quality untuk final • Fast/Lite untuk iterasi • Omni untuk video cepat dan editing.</small>
               </div>
               <label class="toggle"><input type="checkbox" id="fallbackToggle" checked /><span></span><div><b>Fallback vendor</b><small>Coba vendor berikutnya saat gagal.</small></div></label>
               <label class="toggle"><input type="checkbox" id="driveSaveToggle" checked /><span></span><div><b>Simpan ke Google Drive</b><small>Arsip final otomatis setelah render.</small></div></label>
@@ -224,7 +234,8 @@
             <label class="setting-card"><span>Default Rasio</span><select id="settingRatio"><option>16:9</option><option>9:16</option><option>1:1</option></select><small>Dipakai saat membuka proyek baru.</small></label>
             <label class="setting-card"><span>Default Resolusi</span><select id="settingResolution"><option>720p</option><option selected>1080p</option><option>4K</option></select><small>Kualitas output default.</small></label>
             <label class="setting-card"><span>Durasi Scene</span><select id="settingDuration"><option value="5">5 detik</option><option value="8" selected>8 detik</option><option value="10">10 detik</option></select><small>Durasi scene baru.</small></label>
-            <label class="setting-card"><span>Vendor Default</span><select id="settingVendor"><option value="auto">Auto Router</option><option value="seedance">Seedance</option><option value="veo">Google Veo</option><option value="runway">Runway</option><option value="luma">Luma</option></select><small>Router dapat tetap memilih otomatis.</small></label>
+            <label class="setting-card"><span>Vendor Default</span><select id="settingVendor"><option value="auto">Auto Router</option><option value="seedance">Seedance</option><option value="google">Google AI</option><option value="runway">Runway</option><option value="luma">Luma</option></select><small>Router dapat tetap memilih otomatis.</small></label>
+            <label class="setting-card"><span>Model Google Default</span><select id="settingGoogleModel"><option value="veo-3.1-generate-preview">Veo 3.1 - Quality</option><option value="veo-3.1-fast-generate-preview">Veo 3.1 - Fast</option><option value="veo-3.1-lite-generate-preview">Veo 3.1 - Lite</option><option value="gemini-omni-1.1-flash">Omni 1.1 Flash</option></select><small>Dipakai oleh Google AI dan Auto Router.</small></label>
             <label class="setting-card switch-setting"><div><span>Simpan ke Drive</span><small>Aktifkan arsip otomatis hasil final.</small></div><input type="checkbox" id="settingDrive" checked /></label>
           </div>
           <div class="settings-actions"><button class="primary" id="saveSettings">Simpan Pengaturan</button><button class="secondary" id="resetSettings">Reset Default</button></div>
@@ -233,7 +244,7 @@
     </main>
   </div>
   <div class="toast" id="toast"></div>
-  <div class="modal" id="modal"><div class="modal-card scene-inspector"><button class="modal-x" id="modalX">×</button><small>SCENE INSPECTOR • V1.4</small><div class="inspector-head"><h2 id="modalTitle">Scene</h2><span class="scene-status" id="modalSceneStatus">draft</span></div><video id="modalVideo" class="scene-video" controls playsinline hidden></video><label class="field"><span>Judul</span><input id="modalSceneTitle" /></label><label class="field"><span>Prompt</span><textarea id="modalPrompt" rows="7"></textarea></label><div class="form-grid compact inspector-router"><label><span>Regenerate dengan Vendor</span><select id="modalVendor"><option value="auto">Auto Router</option><option value="seedance">Seedance</option><option value="veo">Google Veo</option><option value="runway">Runway</option><option value="luma">Luma</option></select></label><label><span>Fallback</span><select id="modalFallback"><option value="true">Aktif</option><option value="false">Nonaktif</option></select></label></div><div class="action-row"><button class="primary" id="saveScene">Simpan Scene</button><button class="secondary" id="regenerateScene">↻ Regenerate Scene</button><button class="danger" id="deleteScene">Hapus</button></div></div></div>
+  <div class="modal" id="modal"><div class="modal-card scene-inspector"><button class="modal-x" id="modalX">×</button><small>SCENE INSPECTOR • V1.4.1</small><div class="inspector-head"><h2 id="modalTitle">Scene</h2><span class="scene-status" id="modalSceneStatus">draft</span></div><video id="modalVideo" class="scene-video" controls playsinline hidden></video><label class="field"><span>Judul</span><input id="modalSceneTitle" /></label><label class="field"><span>Prompt</span><textarea id="modalPrompt" rows="7"></textarea></label><div class="form-grid compact inspector-router"><label><span>Regenerate dengan Vendor</span><select id="modalVendor"><option value="auto">Auto Router</option><option value="seedance">Seedance</option><option value="google">Google AI</option><option value="runway">Runway</option><option value="luma">Luma</option></select></label><label><span>Fallback</span><select id="modalFallback"><option value="true">Aktif</option><option value="false">Nonaktif</option></select></label></div><div class="action-row"><button class="primary" id="saveScene">Simpan Scene</button><button class="secondary" id="regenerateScene">↻ Regenerate Scene</button><button class="danger" id="deleteScene">Hapus</button></div></div></div>
   <script src="/app.js"></script>
 </body>
 </html>
