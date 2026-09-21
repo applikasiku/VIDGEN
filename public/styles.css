@@ -282,3 +282,103 @@ textarea{min-height:96px;padding-top:14px;padding-bottom:14px}
   .vendor b{font-size:13px}
   .vendor small{font-size:10px}
 }
+
+/* VIDGEN LOCKED SIDEBAR + FEATURES 2026-09-22 */
+@media(min-width:761px){
+  .shell{grid-template-columns:240px minmax(0,1fr)}
+  .sidebar{
+    position:fixed;
+    inset:0 auto 0 0;
+    width:240px;
+    height:100dvh;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+    padding:18px 12px 14px;
+    border-right:1px solid var(--line)
+  }
+  .main{margin-left:240px;width:calc(100% - 240px)}
+  .brand{flex:0 0 auto;padding:4px 10px 16px}
+  .nav{
+    flex:0 0 auto;
+    display:grid;
+    gap:4px;
+    min-height:0
+  }
+  .nav-item{min-height:42px;padding:9px 12px;border-radius:12px}
+  .nav-item i{font-size:15px}
+  .side-card{
+    position:static;
+    left:auto;right:auto;bottom:auto;
+    flex:0 0 auto;
+    margin-top:auto;
+    padding:16px 16px;
+    min-height:0
+  }
+  .side-card b{font-size:15px;margin:6px 0}
+  .side-card p{font-size:10px;line-height:1.45}
+  .version{
+    position:static;
+    flex:0 0 auto;
+    margin:10px 8px 0;
+    font-size:9px
+  }
+}
+@media(min-width:1181px) and (max-height:820px){
+  .sidebar{padding-top:12px;padding-bottom:10px}
+  .brand{padding-bottom:10px}
+  .nav-item{min-height:36px;padding:7px 10px}
+  .side-card{padding:12px 14px}
+  .side-card p{display:none}
+  .version{margin-top:7px}
+}
+.feature-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.feature-card{
+  min-width:0;
+  min-height:150px;
+  padding:18px;
+  border:1px solid #29344c;
+  border-radius:16px;
+  background:linear-gradient(145deg,#11172a,#0b101d);
+  color:#eef2ff;
+  text-align:left;
+  cursor:pointer;
+  transition:.2s
+}
+.feature-card:hover{transform:translateY(-2px);border-color:#7546ed;background:linear-gradient(145deg,#171536,#0d1627)}
+.feature-card i{display:block;font-style:normal;font-size:26px;margin-bottom:18px}
+.feature-card b{display:block;font-size:14px;line-height:1.35}
+.feature-card small{display:block;color:#7f8ba3;font-size:10px;line-height:1.5;margin-top:7px}
+.history-list{display:grid;gap:10px}
+.history-row{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px;border:1px solid #273149;border-radius:13px;background:#0b101d}
+.history-icon{width:44px;height:44px;display:grid;place-items:center;border-radius:11px;background:#211749;color:#bea2ff}
+.history-row b{display:block;font-size:12px}
+.history-row small{display:block;color:#7e8aa2;font-size:9px;margin-top:4px}
+.history-row em{font-style:normal;font-size:9px;color:#9aa7bf}
+.settings-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.setting-card{display:flex;flex-direction:column;gap:7px;min-height:128px;padding:15px;border:1px solid #28334b;border-radius:15px;background:#0b101d}
+.setting-card>span,.setting-card>div>span{color:#8391aa;font-size:10px}
+.setting-card>b{font-size:14px}
+.setting-card small{color:#6f7d96;font-size:9px;line-height:1.45}
+.setting-card select{margin-top:auto}
+.switch-setting{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center}
+.switch-setting input{width:18px;height:18px;min-height:0;accent-color:#7836ff}
+.settings-actions{display:flex;gap:10px;margin-top:16px}
+@media(max-width:1180px) and (min-width:761px){
+  .shell{grid-template-columns:82px minmax(0,1fr)}
+  .sidebar{width:82px;padding:14px 8px}
+  .main{margin-left:82px;width:calc(100% - 82px)}
+  .sidebar .brand-word,.sidebar .nav-item span,.sidebar .side-card,.sidebar .version{display:none}
+  .sidebar .brand{justify-content:center;padding-left:0;padding-right:0}
+  .sidebar .nav-item{justify-content:center;padding-left:6px;padding-right:6px}
+}
+@media(max-width:1020px){
+  .feature-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .settings-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:760px){
+  .feature-grid,.settings-grid{grid-template-columns:1fr}
+  .feature-card{min-height:120px}
+  .settings-actions{flex-direction:column}
+  .settings-actions button{width:100%}
+}
