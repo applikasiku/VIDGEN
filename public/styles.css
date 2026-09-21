@@ -538,3 +538,12 @@ textarea{min-height:96px;padding-top:14px;padding-bottom:14px}
   .scene-inspector{max-height:calc(100dvh - 24px);overflow:auto}
   .inspector-head{align-items:flex-start}
 }
+
+/* VIDGEN 1.4.1 GOOGLE MULTI-MODEL */
+.google-model-panel{margin:12px 0 4px;padding:12px 13px;border:1px solid #2f3952;border-radius:14px;background:linear-gradient(145deg,rgba(59,130,246,.08),rgba(124,58,237,.08))}
+.google-model-panel.hidden{display:none}
+.google-model-panel .mini-title{display:block;margin:0 0 7px}
+.google-model-panel select{width:100%;min-height:42px}
+.google-model-panel small{display:block;margin-top:7px;color:#7d89a0;font-size:9px;line-height:1.45}
+.vendor[data-vendor="google"] em{font-size:8px}
+@media(max-width:760px){.google-model-panel{padding:11px}}
