@@ -504,7 +504,7 @@ export default {
       return json({
         ok: true,
         app: env.APP_NAME || "VIDGEN",
-        version: env.APP_VERSION || "1.4.4",
+        version: env.APP_VERSION || "1.4.5",
         runtime: "cloudflare-workers",
         time: new Date().toISOString()
       });
@@ -522,7 +522,7 @@ export default {
       return json({
         ok: true,
         app: env.APP_NAME || "VIDGEN",
-        version: env.APP_VERSION || "1.4.4",
+        version: env.APP_VERSION || "1.4.5",
         providers
       });
     }
@@ -551,7 +551,7 @@ export default {
       return json({
         ok: checks.worker && checks.d1Binding && checks.r2Binding && checks.d1 === "ok",
         app: env.APP_NAME || "VIDGEN",
-        version: env.APP_VERSION || "1.4.4",
+        version: env.APP_VERSION || "1.4.5",
         checks,
         providers,
         googleDrive: {
