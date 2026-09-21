@@ -6,7 +6,9 @@ const DRIVE_API = "https://www.googleapis.com/drive/v3";
 const DRIVE_UPLOAD = "https://www.googleapis.com/upload/drive/v3/files";
 
 export async function googleAuthStart(request, env, userId) {
-  if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) throw new Error("Google OAuth belum dikonfigurasi.");
+  if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET || !env.SESSION_SECRET) {
+    throw new Error("Google OAuth belum lengkap. Isi GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, dan SESSION_SECRET di Cloudflare Secrets.");
+  }
   const origin = new URL(request.url).origin;
   const state = await makeState(userId, env);
   const qs = new URLSearchParams({
@@ -24,9 +26,11 @@ export async function googleAuthStart(request, env, userId) {
 
 export async function googleAuthCallback(request, env) {
   const url = new URL(request.url);
+  const oauthError = url.searchParams.get("error");
+  if (oauthError) throw new Error(`Google OAuth dibatalkan/gagal: ${oauthError}`);
   const code = url.searchParams.get("code");
   const userId = await verifyState(url.searchParams.get("state") || "", env);
-  if (!code || !userId) throw new Error("OAuth state tidak valid.");
+  if (!code || !userId) throw new Error("OAuth state tidak valid atau kedaluwarsa.");
   const origin = url.origin;
   const tokenRes = await fetch(GOOGLE_TOKEN, {
     method: "POST",
@@ -82,8 +86,22 @@ async function getToken(env, userId) {
 }
 
 export async function driveStatus(env, userId) {
-  const row = await env.DATABASE_V2.prepare("SELECT u.email,u.name,u.picture,o.scope FROM users u LEFT JOIN oauth_tokens o ON o.user_id=u.id AND o.provider='google' WHERE u.id=?").bind(userId).first();
-  return { connected: Boolean(row?.scope), email: row?.email || null, name: row?.name || null, picture: row?.picture || null };
+  const row = await env.DATABASE_V2.prepare("SELECT u.email,u.name,u.picture,o.scope,o.expires_at FROM users u LEFT JOIN oauth_tokens o ON o.user_id=u.id AND o.provider='google' WHERE u.id=?").bind(userId).first();
+  return {
+    configured: Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.SESSION_SECRET),
+    connected: Boolean(row?.scope),
+    email: row?.email || null,
+    name: row?.name || null,
+    picture: row?.picture || null,
+    scope: row?.scope || null,
+    tokenExpiresAt: row?.expires_at || null,
+    folderName: env.GOOGLE_DRIVE_FOLDER || "VIDGEN"
+  };
+}
+
+export async function disconnectDrive(env, userId) {
+  await env.DATABASE_V2.prepare("DELETE FROM oauth_tokens WHERE user_id=? AND provider='google'").bind(userId).run();
+  return { ok: true };
 }
 
 async function ensureFolder(accessToken, folderName) {
@@ -102,13 +120,48 @@ async function ensureFolder(accessToken, folderName) {
   return (await create.json()).id;
 }
 
-export async function archiveR2ToDrive(env, userId, { r2Key, fileName, mimeType = "video/mp4" }) {
-  if (!r2Key || !r2Key.startsWith(`${userId}/`)) throw Object.assign(new Error("File bukan milik sesi ini."), { status: 403 });
-  const object = await env.STORAGE_V2.get(r2Key);
-  if (!object) throw new Error("File R2 tidak ditemukan.");
-  const accessToken = await getToken(env, userId);
-  const folderId = await ensureFolder(accessToken, env.GOOGLE_DRIVE_FOLDER || "VIDGEN");
+async function assertOwnedR2Key(env, userId, r2Key) {
+  if (!r2Key) throw Object.assign(new Error("R2 key kosong."), { status: 400 });
+  if (r2Key.startsWith(`${userId}/`)) return true;
 
+  const scene = await env.DATABASE_V2.prepare(
+    "SELECT s.id FROM scenes s JOIN projects p ON p.id=s.project_id WHERE p.user_id=? AND s.output_r2_key=? LIMIT 1"
+  ).bind(userId, r2Key).first();
+  if (scene) return true;
+
+  const project = await env.DATABASE_V2.prepare(
+    "SELECT id FROM projects WHERE user_id=? AND (audio_r2_key=? OR final_r2_key=?) LIMIT 1"
+  ).bind(userId, r2Key, r2Key).first();
+  if (project) return true;
+
+  const asset = await env.DATABASE_V2.prepare(
+    "SELECT id FROM assets WHERE user_id=? AND r2_key=? LIMIT 1"
+  ).bind(userId, r2Key).first();
+  if (asset) return true;
+
+  throw Object.assign(new Error("File R2 bukan milik sesi ini."), { status: 403 });
+}
+
+async function ensureSubfolder(accessToken, parentId, folderName) {
+  const escaped = folderName.replaceAll("'", "\\'");
+  const q = `name='${escaped}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`;
+  const find = await fetch(`${DRIVE_API}/files?q=${encodeURIComponent(q)}&fields=files(id,name)&spaces=drive`, {
+    headers: { authorization: `Bearer ${accessToken}` }
+  });
+  if (find.ok) {
+    const data = await find.json();
+    if (data.files?.[0]?.id) return data.files[0].id;
+  }
+  const create = await fetch(`${DRIVE_API}/files?fields=id,name,webViewLink`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
+    body: JSON.stringify({ name: folderName, mimeType: "application/vnd.google-apps.folder", parents: [parentId] })
+  });
+  if (!create.ok) throw new Error(`Gagal membuat subfolder Drive: ${await create.text()}`);
+  return (await create.json()).id;
+}
+
+async function uploadObjectToDrive(accessToken, object, { fileName, mimeType, parentId }) {
   const init = await fetch(`${DRIVE_UPLOAD}?uploadType=resumable&fields=id,name,webViewLink,size`, {
     method: "POST",
     headers: {
@@ -117,17 +170,73 @@ export async function archiveR2ToDrive(env, userId, { r2Key, fileName, mimeType 
       "x-upload-content-type": mimeType,
       "x-upload-content-length": String(object.size)
     },
-    body: JSON.stringify({ name: fileName, parents: [folderId] })
+    body: JSON.stringify({ name: fileName, parents: [parentId] })
   });
   if (!init.ok) throw new Error(`Drive resumable init gagal: ${await init.text()}`);
   const location = init.headers.get("location");
   if (!location) throw new Error("Google Drive tidak mengembalikan resumable upload URL.");
+
   const upload = await fetch(location, {
     method: "PUT",
     headers: { "content-type": mimeType, "content-length": String(object.size) },
     body: object.body
   });
   if (!upload.ok) throw new Error(`Upload Google Drive gagal: ${await upload.text()}`);
-  return { ...(await upload.json()), folderId };
+  return upload.json();
 }
 
+export async function testDrive(env, userId) {
+  const accessToken = await getToken(env, userId);
+  const folderId = await ensureFolder(accessToken, env.GOOGLE_DRIVE_FOLDER || "VIDGEN");
+  return { ok: true, folderId, folderName: env.GOOGLE_DRIVE_FOLDER || "VIDGEN" };
+}
+
+export async function archiveR2ToDrive(env, userId, { r2Key, fileName, mimeType = "video/mp4", projectFolder = null }) {
+  await assertOwnedR2Key(env, userId, r2Key);
+  const object = await env.STORAGE_V2.get(r2Key);
+  if (!object) throw new Error("File R2 tidak ditemukan.");
+
+  const accessToken = await getToken(env, userId);
+  const rootFolderId = await ensureFolder(accessToken, env.GOOGLE_DRIVE_FOLDER || "VIDGEN");
+  const parentId = projectFolder ? await ensureSubfolder(accessToken, rootFolderId, projectFolder) : rootFolderId;
+  const uploaded = await uploadObjectToDrive(accessToken, object, { fileName, mimeType, parentId });
+  return { ...uploaded, folderId: parentId, rootFolderId };
+}
+
+export async function archiveSceneToDrive(env, userId, { projectId, sceneId }) {
+  const row = await env.DATABASE_V2.prepare(
+    `SELECT s.id,s.scene_index,s.title,s.output_r2_key,s.drive_file_id,s.drive_web_view_link,
+            p.title AS project_title
+       FROM scenes s
+       JOIN projects p ON p.id=s.project_id
+      WHERE s.id=? AND s.project_id=? AND p.user_id=?
+      LIMIT 1`
+  ).bind(sceneId, projectId, userId).first();
+
+  if (!row) throw Object.assign(new Error("Scene tidak ditemukan."), { status: 404 });
+  if (!row.output_r2_key) throw Object.assign(new Error("Scene belum memiliki output video."), { status: 400 });
+
+  if (row.drive_file_id) {
+    return {
+      id: row.drive_file_id,
+      webViewLink: row.drive_web_view_link || null,
+      alreadyArchived: true
+    };
+  }
+
+  const safeProject = String(row.project_title || "Project").replace(/[\\/:*?"<>|]+/g, "-").trim().slice(0, 80) || "Project";
+  const sceneNo = String(Number(row.scene_index || 0) + 1).padStart(2, "0");
+  const safeScene = String(row.title || `Scene ${sceneNo}`).replace(/[\\/:*?"<>|]+/g, "-").trim().slice(0, 80) || `Scene ${sceneNo}`;
+  const result = await archiveR2ToDrive(env, userId, {
+    r2Key: row.output_r2_key,
+    fileName: `${sceneNo} - ${safeScene}.mp4`,
+    mimeType: "video/mp4",
+    projectFolder: safeProject
+  });
+
+  await env.DATABASE_V2.prepare(
+    "UPDATE scenes SET drive_file_id=?,drive_web_view_link=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND project_id=?"
+  ).bind(result.id || null, result.webViewLink || null, sceneId, projectId).run();
+
+  return result;
+}
