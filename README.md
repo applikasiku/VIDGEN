@@ -1,4 +1,4 @@
-# VIDGEN V1.4.1
+# VIDGEN V1.4.2
 
 VIDGEN adalah **AI Multi-Vendor Music Video Generator** berbasis Cloudflare Workers + Static Assets.
 
@@ -259,3 +259,18 @@ VIDGEN 1.4.1 menambahkan **Google Multi-Model Router** melalui Gemini Developer 
 - Perbaikan selector frontend untuk daftar project, aset, scene, vendor, template, dan navigasi.
 
 Tambahkan `GOOGLE_AI_API_KEY` melalui Cloudflare Worker → Settings → Variables and Secrets sebagai **Secret**, bukan build variable.
+
+
+## Rilis 1.4.2
+
+VIDGEN 1.4.2 memperkuat workflow reference image dan konsistensi UI:
+
+- Reference image aktif sekarang memiliki preview langsung di editor.
+- Quick Upload dari editor dapat otomatis memilih file pertama sebagai reference aktif.
+- Bulk upload tetap mendukung banyak JPG/PNG/WEBP sekaligus.
+- Reference terpilih tetap disimpan di D1 melalui project_assets dan file tetap berada di R2.
+- Storyboard menerima penanda reference aktif dan memperkuat continuity prompt untuk identitas wajah, wardrobe, palet warna, dan style.
+- Provider render menerima metadata reference asset; JPEG/PNG/WEBP hingga 8 MB dapat disiapkan sebagai inline reference, sementara URL tokenized tetap tersedia untuk provider yang membutuhkan URL.
+- UI utama memakai Font Awesome secara konsisten untuk sidebar, KPI, upload, template, prompt, vendor, scene action, Drive, dan kontrol editor.
+- Perbaikan selector frontend yang tersisa agar daftar project, aset, dan pengaturan tidak gagal saat memakai querySelector tunggal.
+- Frontend, Worker, package version, dan PWA cache disinkronkan ke 1.4.2.
