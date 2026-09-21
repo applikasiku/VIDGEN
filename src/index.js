@@ -3,7 +3,7 @@ import { providerCatalog, providerCandidates } from "./providers/router.js";
 import { createLumaVideo } from "./providers/luma.js";
 import { createSeedanceVideo } from "./providers/seedance.js";
 import { createRunwayVideo } from "./providers/runway.js";
-import { createVeoVideo } from "./providers/veo.js";
+import { createGoogleVideo } from "./providers/google.js";
 import { pollProvider, normalizeProviderPayload } from "./providers/status.js";
 import { googleAuthStart, googleAuthCallback, driveStatus, archiveR2ToDrive } from "./drive.js";
 
@@ -51,6 +51,7 @@ async function ensureSchema(env) {
         resolution TEXT DEFAULT '1080p',
         router_mode TEXT DEFAULT 'auto',
         router_priority TEXT DEFAULT 'quality',
+        google_model TEXT DEFAULT 'veo-3.1-generate-preview',
         save_to_drive INTEGER DEFAULT 1,
         drive_folder_id TEXT,
         final_r2_key TEXT,
@@ -137,6 +138,7 @@ async function ensureSchema(env) {
     `;
     await env.DATABASE_V2.batch(schema.split(";").map(sql => sql.trim()).filter(Boolean).map(sql => env.DATABASE_V2.prepare(sql)));
     try { await env.DATABASE_V2.prepare("ALTER TABLE jobs ADD COLUMN scene_id TEXT").run(); } catch {}
+    try { await env.DATABASE_V2.prepare("ALTER TABLE projects ADD COLUMN google_model TEXT DEFAULT 'veo-3.1-generate-preview'").run(); } catch {}
     await env.DATABASE_V2.prepare("DELETE FROM provider_media_tokens WHERE expires_at <= CURRENT_TIMESTAMP").run();
     schemaReady = true;
   }
@@ -241,6 +243,7 @@ async function createProviderTask(env, provider, scene, request, reference = nul
     duration: scene.duration,
     aspectRatio: scene.aspectRatio,
     resolution: scene.resolution,
+    googleModel: scene.googleModel || env.GOOGLE_AI_DEFAULT_MODEL || "veo-3.1-generate-preview",
     referenceUrl: reference?.url || null,
     referenceBase64: reference?.base64 || null,
     referenceMimeType: reference?.mimeType || null
@@ -248,7 +251,7 @@ async function createProviderTask(env, provider, scene, request, reference = nul
   if (provider === "luma") return createLumaVideo(env, payload, `${new URL(request.url).origin}/api/webhooks/luma`);
   if (provider === "seedance") return createSeedanceVideo(env, payload);
   if (provider === "runway") return createRunwayVideo(env, payload);
-  if (provider === "veo") return createVeoVideo(env, payload);
+  if (provider === "google") return createGoogleVideo(env, payload);
   throw new Error(`Provider tidak didukung: ${provider}`);
 }
 
@@ -261,7 +264,9 @@ async function persistProviderOutput(env, projectId, sceneId, provider, normaliz
     const bytes = base64ToBytes(normalized.outputBase64);
     await env.STORAGE_V2.put(key, bytes, { httpMetadata: { contentType: mimeType } });
   } else if (normalized.outputUrl && /^https:\/\//i.test(normalized.outputUrl)) {
-    const response = await fetch(normalized.outputUrl);
+    const response = await fetch(normalized.outputUrl, provider === "google" ? {
+      headers: { "x-goog-api-key": env.GOOGLE_AI_API_KEY }
+    } : undefined);
     if (!response.ok || !response.body) throw new Error(`Gagal mengambil output ${provider}: HTTP ${response.status}`);
     await env.STORAGE_V2.put(key, response.body, { httpMetadata: { contentType: response.headers.get("content-type") || mimeType } });
   } else if (normalized.outputGcsUri) {
@@ -289,6 +294,7 @@ async function submitSceneJob(env, project, scene, request, { vendor, fallback =
     duration: Number(scene.duration_seconds || 8),
     aspectRatio: project.aspect_ratio,
     resolution: project.resolution,
+    googleModel: project.google_model || env.GOOGLE_AI_DEFAULT_MODEL || "veo-3.1-generate-preview",
     fallback: Boolean(fallback)
   };
   const attempts = [];
@@ -297,6 +303,16 @@ async function submitSceneJob(env, project, scene, request, { vendor, fallback =
   for (const provider of candidates) {
     try {
       const result = await createProviderTask(env, provider, payload, request, reference);
+      if (result.immediate) {
+        const outputKey = await persistProviderOutput(env, project.id, scene.id, provider, result.immediate);
+        await env.DATABASE_V2.prepare(
+          "INSERT INTO jobs (id,project_id,scene_id,job_type,provider,provider_job_id,status,progress,payload_json,result_json) VALUES (?,?,?,?,?,?,?,?,?,?)"
+        ).bind(jobId, project.id, scene.id, "scene_generation", provider, result.taskId || null, "completed", 100, JSON.stringify(payload), JSON.stringify({ model: result.model, immediate: true, outputKey })).run();
+        await env.DATABASE_V2.prepare(
+          "UPDATE scenes SET vendor=?,provider_job_id=?,status='completed',updated_at=CURRENT_TIMESTAMP WHERE id=?"
+        ).bind(provider, result.taskId || null, scene.id).run();
+        return { jobId, sceneId: scene.id, sceneIndex: scene.scene_index, provider, taskId: result.taskId, demo: false, status: "completed", outputKey };
+      }
       if (result.demo && fallback && candidates.length > 1) {
         demoAttempt ||= { provider, result };
         attempts.push({ provider, demo: true, note: result.note || "Provider belum dikonfigurasi; mencoba kandidat berikutnya." });
@@ -442,7 +458,7 @@ export default {
       return json({
         ok: true,
         app: env.APP_NAME || "VIDGEN",
-        version: env.APP_VERSION || "1.4.0",
+        version: env.APP_VERSION || "1.4.1",
         runtime: "cloudflare-workers",
         time: new Date().toISOString()
       });
@@ -460,7 +476,7 @@ export default {
       return json({
         ok: true,
         app: env.APP_NAME || "VIDGEN",
-        version: env.APP_VERSION || "1.4.0",
+        version: env.APP_VERSION || "1.4.1",
         providers
       });
     }
@@ -489,7 +505,7 @@ export default {
       return json({
         ok: checks.worker && checks.d1Binding && checks.r2Binding && checks.d1 === "ok",
         app: env.APP_NAME || "VIDGEN",
-        version: env.APP_VERSION || "1.4.0",
+        version: env.APP_VERSION || "1.4.1",
         checks,
         providers,
         databaseError
@@ -528,7 +544,7 @@ export default {
       if (url.pathname === "/api/bootstrap") {
         const drive = await driveStatus(env, session.id);
         const providers = providerCatalog(env);
-        const projects = await env.DATABASE_V2.prepare("SELECT id,title,genre,status,aspect_ratio,resolution,audio_name,duration_seconds,created_at,updated_at FROM projects WHERE user_id=? ORDER BY updated_at DESC LIMIT 24").bind(session.id).all();
+        const projects = await env.DATABASE_V2.prepare("SELECT id,title,genre,status,aspect_ratio,resolution,audio_name,duration_seconds,google_model,created_at,updated_at FROM projects WHERE user_id=? ORDER BY updated_at DESC LIMIT 24").bind(session.id).all();
         const assets = await env.DATABASE_V2.prepare("SELECT id,kind,name,mime_type,size_bytes,created_at FROM assets WHERE user_id=? ORDER BY created_at DESC LIMIT 60").bind(session.id).all();
         return withSession(json({ mode: "cloudflare", providers, drive, projects: projects.results || [], assets: assets.results || [] }), session);
       }
@@ -597,8 +613,8 @@ export default {
         const audioName = safeText(b.audioName, 180);
         const audioKey = safeText(b.audioR2Key, 700);
         const referenceAssetId = safeText(b.referenceAssetId, 120);
-        const statements = [env.DATABASE_V2.prepare(`INSERT INTO projects (id,user_id,title,genre,concept,audio_name,audio_r2_key,duration_seconds,style,aspect_ratio,resolution,router_mode,router_priority,save_to_drive,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-          .bind(id, session.id, safeText(b.title || "Untitled", 160), safeText(b.genre, 160), safeText(b.concept, 2000), audioName || null, audioKey || null, Number(b.duration || 0), safeText(b.style || "cinematic", 50), safeText(b.aspectRatio || "16:9", 10), safeText(b.resolution || "1080p", 20), safeText(b.vendor || "auto", 40), safeText(b.priority || "quality", 40), b.saveToDrive === false ? 0 : 1, "draft")];
+        const statements = [env.DATABASE_V2.prepare(`INSERT INTO projects (id,user_id,title,genre,concept,audio_name,audio_r2_key,duration_seconds,style,aspect_ratio,resolution,router_mode,router_priority,google_model,save_to_drive,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+          .bind(id, session.id, safeText(b.title || "Untitled", 160), safeText(b.genre, 160), safeText(b.concept, 2000), audioName || null, audioKey || null, Number(b.duration || 0), safeText(b.style || "cinematic", 50), safeText(b.aspectRatio || "16:9", 10), safeText(b.resolution || "1080p", 20), safeText(b.vendor || "auto", 40), safeText(b.priority || "quality", 40), safeText(b.googleModel || env.GOOGLE_AI_DEFAULT_MODEL || "veo-3.1-generate-preview", 120), b.saveToDrive === false ? 0 : 1, "draft")];
         for (const [i, s] of b.scenes.entries()) {
           statements.push(env.DATABASE_V2.prepare(`INSERT INTO scenes (id,project_id,scene_index,title,prompt,start_seconds,duration_seconds,vendor,status) VALUES (?,?,?,?,?,?,?,?,?)`)
             .bind(uid("scn"), id, i, safeText(s.title, 160), safeText(s.prompt, 5000), Number(s.start || 0), Number(s.duration || 8), safeText(s.vendor || "auto", 40), "draft"));
@@ -645,8 +661,8 @@ export default {
           const audioKey = safeText(b.audioR2Key || project.audio_r2_key, 700);
           const referenceAssetId = safeText(b.referenceAssetId, 120);
           const statements = [
-            env.DATABASE_V2.prepare("UPDATE projects SET title=?,genre=?,concept=?,audio_name=?,audio_r2_key=?,duration_seconds=?,style=?,aspect_ratio=?,resolution=?,router_mode=?,router_priority=?,save_to_drive=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?")
-              .bind(safeText(b.title || "Untitled",160),safeText(b.genre,160),safeText(b.concept,2000),audioName||null,audioKey||null,Number(b.duration||0),safeText(b.style||"cinematic",50),safeText(b.aspectRatio||"16:9",10),safeText(b.resolution||"1080p",20),safeText(b.vendor||"auto",40),safeText(b.priority||"quality",40),b.saveToDrive===false?0:1,projectId,session.id),
+            env.DATABASE_V2.prepare("UPDATE projects SET title=?,genre=?,concept=?,audio_name=?,audio_r2_key=?,duration_seconds=?,style=?,aspect_ratio=?,resolution=?,router_mode=?,router_priority=?,google_model=?,save_to_drive=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?")
+              .bind(safeText(b.title || "Untitled",160),safeText(b.genre,160),safeText(b.concept,2000),audioName||null,audioKey||null,Number(b.duration||0),safeText(b.style||"cinematic",50),safeText(b.aspectRatio||"16:9",10),safeText(b.resolution||"1080p",20),safeText(b.vendor||"auto",40),safeText(b.priority||"quality",40),safeText(b.googleModel || project.google_model || env.GOOGLE_AI_DEFAULT_MODEL || "veo-3.1-generate-preview",120),b.saveToDrive===false?0:1,projectId,session.id),
             env.DATABASE_V2.prepare("DELETE FROM scenes WHERE project_id=?").bind(projectId),
             env.DATABASE_V2.prepare("DELETE FROM project_assets WHERE project_id=? AND role='reference'").bind(projectId)
           ];
