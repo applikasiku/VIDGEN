@@ -7,6 +7,9 @@
   <meta name="description" content="VIDGEN — AI multi-vendor music video generator dengan Seedance, Veo, Runway, Luma dan Google Drive." />
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+  <script>
+    (()=>{try{const t=localStorage.getItem('vidgen:theme')||'light';document.documentElement.dataset.theme=t}catch{document.documentElement.dataset.theme='light'}})();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -34,11 +37,11 @@
       </nav>
       <div class="side-card">
         <div class="side-glow"></div>
-        <small>VIDGEN V1.4.3</small>
+        <small>VIDGEN V1.4.4</small>
         <b>Satu lagu.<br/>Banyak imajinasi.</b>
         <p>Storyboard, multi-vendor routing, render queue & arsip Drive.</p>
       </div>
-      <div class="version">v1.4.3 • PWA</div>
+      <div class="version">v1.4.4 • PWA</div>
     </aside>
 
     <main class="main">
@@ -49,12 +52,13 @@
         </div>
         <div class="top-actions">
           <div class="cloud-state" id="cloudState"><span></span><b>Checking API…</b></div>
+          <button class="theme-toggle" id="themeToggle" type="button" aria-label="Ganti ke mode gelap" title="Mode Gelap"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
           <button class="avatar" id="driveQuick" title="Google Drive"><i class="fa-brands fa-google-drive"></i></button>
         </div>
       </header>
 
       <section class="notice" id="notice">
-        <div><b>VIDGEN V1.4.3</b><span>Status produksi dan provider dibaca langsung dari Cloudflare Worker.</span></div>
+        <div><b>VIDGEN V1.4.4</b><span>Status produksi dan provider dibaca langsung dari Cloudflare Worker.</span></div>
         <button id="dismissNotice" title="Tutup"><i class="fa-solid fa-xmark"></i></button>
       </section>
 
@@ -244,6 +248,7 @@
           <div class="section-title"><div><small>CONFIGURATION</small><h2>Pengaturan VIDGEN</h2></div><span class="pill">Tersimpan di perangkat</span></div>
           <div class="settings-grid">
             <div class="setting-card"><span>Backend</span><b id="backendMode">Mendeteksi…</b><small>Status Worker produksi.</small></div>
+            <label class="setting-card"><span>Tampilan</span><select id="settingTheme"><option value="light">Mode Terang</option><option value="dark">Mode Gelap</option></select><div class="theme-setting-preview"><i class="fa-solid fa-circle-half-stroke"></i><span>Tema tersimpan di perangkat ini.</span></div></label>
             <label class="setting-card"><span>Default Rasio</span><select id="settingRatio"><option>16:9</option><option>9:16</option><option>1:1</option></select><small>Dipakai saat membuka proyek baru.</small></label>
             <label class="setting-card"><span>Default Resolusi</span><select id="settingResolution"><option>720p</option><option selected>1080p</option><option>4K</option></select><small>Kualitas output default.</small></label>
             <label class="setting-card"><span>Durasi Scene</span><select id="settingDuration"><option value="5">5 detik</option><option value="8" selected>8 detik</option><option value="10">10 detik</option></select><small>Durasi scene baru.</small></label>
