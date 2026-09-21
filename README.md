@@ -1,4 +1,4 @@
-# VIDGEN V1
+# VIDGEN V1.1
 
 VIDGEN adalah **AI Multi-Vendor Music Video Generator** berbasis Cloudflare Workers + Static Assets.
 
@@ -9,7 +9,6 @@ Repository ini sudah disiapkan untuk deployment Cloudflare dengan:
 - Cloudflare Worker API + PWA/static assets dalam satu deployment.
 - D1 database binding `DATABASE_V2`.
 - R2 media binding `STORAGE_V2`.
-- **Automatic provisioning** D1 dan R2 pada deployment pertama (Wrangler 4.45+).
 - GitHub Actions auto-deploy pada push ke `main`.
 - D1 migrations otomatis sesudah Worker berhasil dipublish.
 - Health check publik di `/api/health`.
@@ -41,7 +40,11 @@ Cloudflare Workers
 6. Deploy command: `npm run deploy`.
 7. Simpan dan deploy.
 
-D1 dan R2 menggunakan draft bindings tanpa ID/nama akun-spesifik. Wrangler akan mem-provision resource dan menghubungkannya ke Worker pada deployment pertama.
+Production saat ini memakai binding eksplisit:
+
+- D1: `DATABASE_V2` → `vidgen-db`
+- R2: `STORAGE_V2` → `vidgen-media`
+
 
 Setelah deploy, cek:
 
@@ -66,7 +69,7 @@ Tambahkan repository secrets di GitHub:
 
 Lalu push ke `main` atau jalankan workflow secara manual.
 
-API token Cloudflare harus memiliki izin yang cukup untuk Workers Scripts serta provisioning D1 dan R2.
+API token Cloudflare harus memiliki izin yang cukup untuk Workers Scripts, D1, dan R2.
 
 ## Local development
 
@@ -163,3 +166,19 @@ Cloudflare Workers Builds untuk project ini mengharapkan nama Worker `vidgen` da
 - R2: `STORAGE_V2`
 
 Kode Worker sudah diperbarui untuk memakai `env.DATABASE_V2` dan `env.STORAGE_V2`. Dengan nama binding baru, automatic provisioning tidak lagi memakai draft binding lama yang berbenturan.
+
+
+## Rilis 1.1.0
+
+VIDGEN 1.1.0 memperbarui antarmuka dan workflow produksi dengan:
+
+- Sidebar desktop fixed dan layout responsif yang tidak ikut scroll.
+- Menu Template Video untuk preset workflow cepat.
+- Prompt Library untuk memasukkan konsep visual siap pakai.
+- Riwayat proyek berbasis data project backend.
+- Pengaturan default rasio, resolusi, durasi scene, vendor, dan penyimpanan Drive.
+- Perbaikan panel Analisis & Storyboard serta Pengaturan Video untuk desktop, tablet, dan mobile.
+- Sinkronisasi versi frontend/backend/PWA menjadi 1.1.0.
+- Perbaikan selector JavaScript pada Template, Prompt Library, dan preferensi agar semua fitur baru dapat dijalankan stabil.
+
+Domain produksi: `https://vidgen.purbalink.web.id`.
