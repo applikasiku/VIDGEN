@@ -1,4 +1,4 @@
-// Cloudflare build trigger: VIDGEN v1.3.0 current config
+// Cloudflare build trigger: VIDGEN v1.4.0 current config
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "vidgen",
@@ -13,7 +13,7 @@
     "directory": "./public",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/oauth/*"]
+    "run_worker_first": ["/api/*", "/oauth/*", "/provider-media/*"]
   },
   "d1_databases": [
     {
@@ -31,12 +31,15 @@
   "vars": {
     "APP_NAME": "VIDGEN",
     "APP_ENV": "production",
-    "APP_VERSION": "1.3.0",
+    "APP_VERSION": "1.4.0",
     "GOOGLE_DRIVE_FOLDER": "VIDGEN",
     "LUMA_MODEL": "ray-2",
+    "RUNWAY_API_BASE": "https://api.dev.runwayml.com/v1",
+    "RUNWAY_MODEL": "gen4.5",
+    "SEEDANCE_API_BASE": "https://operator.las.ap-southeast-1.bytepluses.com",
     "VEO_MODEL": "veo-3.1-generate-001",
     "VEO_LOCATION": "us-central1",
-    "SEEDANCE_MODEL": "doubao-seedance-1-5-pro-251215"
+    "SEEDANCE_MODEL": "dreamina-seedance-2-0-260128"
   }
 }
 
