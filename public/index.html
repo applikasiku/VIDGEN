@@ -92,7 +92,22 @@
               <div class="section-title"><div><small>02 • AI DIRECTOR</small><h2>Analisis & Storyboard</h2></div><button class="text-btn" id="resetScenes">Reset</button></div>
               <div class="form-grid">
                 <label><span>Judul Project</span><input id="projectTitle" value="Videoclip Baru" /></label>
-                <label><span>Genre / Nuansa</span><input id="genreInput" placeholder="Ska rocksteady, pop, gothic…" /></label>
+                <label><span>Genre / Nuansa</span><select id="genreSelect">
+  <option value="Ska rocksteady">Ska rocksteady</option>
+  <option value="Pop">Pop</option>
+  <option value="Dangdut">Dangdut</option>
+  <option value="Rock">Rock</option>
+  <option value="Gothic">Gothic</option>
+  <option value="Jazz">Jazz</option>
+  <option value="Hip-hop / Rap">Hip-hop / Rap</option>
+  <option value="EDM">EDM</option>
+  <option value="Akustik">Akustik</option>
+  <option value="Cinematic orchestral">Cinematic orchestral</option>
+  <option value="Religi / Islami">Religi / Islami</option>
+  <option value="Jawa tradisional modern">Jawa tradisional modern</option>
+  <option value="Lainnya">Lainnya</option>
+</select></label>
+<label id="genreCustomWrap" class="genre-custom-wrap"><span>Genre custom</span><input id="genreCustom" placeholder="Tulis genre / nuansa lainnya..." /></label>
               </div>
               <label class="field"><span>Konsep video</span><textarea id="conceptInput" rows="3" placeholder="Contoh: penyanyi berjalan di kota malam, neon, emosional, potongan performance dan storytelling…"></textarea></label>
               <div class="form-grid compact advanced-storyboard">
@@ -162,7 +177,7 @@
         <article class="card page-card">
           <div class="section-title"><div><small>MEDIA LIBRARY • R2</small><h2>Reference Image</h2></div><span class="pill">JPG • PNG • WEBP • maks 10 MB</span></div>
           <div class="asset-toolbar">
-            <label class="asset-upload"><input type="file" id="assetInput" accept="image/jpeg,image/png,image/webp" hidden /><span>＋ Upload Reference</span><small>Disimpan privat di Cloudflare R2.</small></label>
+            <label class="asset-upload"><input type="file" id="assetInput" accept="image/jpeg,image/png,image/webp" multiple hidden /><span>＋ Bulk Upload Reference</span><small>Pilih banyak JPG/PNG/WEBP sekaligus • disimpan privat di Cloudflare R2.</small></label>
             <div class="asset-status"><b id="assetCount">0 aset</b><small>Pilih satu aset sebagai panduan visual storyboard.</small></div>
           </div>
           <div class="asset-grid" id="assetGrid"><div class="empty">Belum ada reference image.</div></div>
