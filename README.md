@@ -1,4 +1,4 @@
-# VIDGEN V1.4.2
+# VIDGEN V1.4.3
 
 VIDGEN adalah **AI Multi-Vendor Music Video Generator** berbasis Cloudflare Workers + Static Assets.
 
@@ -274,3 +274,16 @@ VIDGEN 1.4.2 memperkuat workflow reference image dan konsistensi UI:
 - UI utama memakai Font Awesome secara konsisten untuk sidebar, KPI, upload, template, prompt, vendor, scene action, Drive, dan kontrol editor.
 - Perbaikan selector frontend yang tersisa agar daftar project, aset, dan pengaturan tidak gagal saat memakai querySelector tunggal.
 - Frontend, Worker, package version, dan PWA cache disinkronkan ke 1.4.2.
+
+
+## Rilis 1.4.3
+
+Perbaikan stabilitas render produksi:
+
+- Submit render dibatasi maksimal 4 scene per Worker request untuk menghindari batas subrequest Cloudflare.
+- Frontend mengirim scene dalam batch kecil (3 scene per batch) dengan jeda singkat antar batch.
+- Circuit breaker per batch menghentikan percobaan berulang ke provider yang sudah mengembalikan auth error, quota/rate-limit, atau credit error.
+- Jika semua provider yang dikonfigurasi sedang bermasalah, pengiriman batch berikutnya dihentikan otomatis.
+- Error provider disimpan dan ditampilkan dalam bentuk ringkas; detail mentah tetap tersedia pada title/diagnostic data.
+- Render Queue menampilkan job terbaru per scene sehingga retry/fallback lama tidak memenuhi layar.
+- Pipeline polling juga memakai circuit breaker agar provider gagal tidak dipanggil berulang dalam satu Worker invocation.
