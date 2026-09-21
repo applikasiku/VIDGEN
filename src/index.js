@@ -265,19 +265,20 @@ async function persistProviderOutput(env, projectId, sceneId, provider, normaliz
   return key;
 }
 
-async function submitSceneJob(env, project, scene, request, { vendor, fallback = true, reference = null } = {}) {
+async function submitSceneJob(env, project, scene, request, { vendor, fallback = true, reference = null, excludeProviders = [] } = {}) {
   const candidates = providerCandidates({
     vendor: vendor || project.router_mode || "auto",
     priority: project.router_priority || "quality",
     sceneIndex: Number(scene.scene_index || 0),
     fallback
-  });
+  }).filter(p => !excludeProviders.includes(p));
   const jobId = uid("job");
   const payload = {
     prompt: scene.prompt,
     duration: Number(scene.duration_seconds || 8),
     aspectRatio: project.aspect_ratio,
-    resolution: project.resolution
+    resolution: project.resolution,
+    fallback: Boolean(fallback)
   };
   const attempts = [];
 
@@ -331,7 +332,20 @@ async function applyNormalizedJob(env, job, normalized) {
   return { status, outputKey, errorMessage };
 }
 
-async function syncProjectJobs(env, projectId, userId) {
+async function syncProjectJobs(env, projectId, userId, request) {
+  const project = await env.DATABASE_V2.prepare("SELECT * FROM projects WHERE id=? AND user_id=?").bind(projectId, userId).first();
+  if (!project) return { jobs: [], scenes: [], projectStatus: "missing" };
+
+  let reference;
+  let referencePrepared = false;
+  const getReference = async () => {
+    if (!referencePrepared) {
+      reference = await prepareReference(env, projectId, userId, new URL(request.url).origin);
+      referencePrepared = true;
+    }
+    return reference;
+  };
+
   const active = await env.DATABASE_V2.prepare(
     "SELECT j.* FROM jobs j JOIN projects p ON p.id=j.project_id WHERE j.project_id=? AND p.user_id=? AND j.provider_job_id IS NOT NULL AND j.status IN ('queued','submitted','running','processing','dreaming') ORDER BY j.created_at ASC LIMIT 12"
   ).bind(projectId, userId).all();
@@ -340,7 +354,30 @@ async function syncProjectJobs(env, projectId, userId) {
     if (String(job.provider_job_id || "").startsWith("demo_")) continue;
     try {
       const normalized = await pollProvider(env, job.provider, job.provider_job_id);
-      await applyNormalizedJob(env, job, normalized);
+      const applied = await applyNormalizedJob(env, job, normalized);
+
+      if (applied.status === "failed" && job.scene_id) {
+        let payload = {};
+        try { payload = JSON.parse(job.payload_json || "{}"); } catch {}
+        if (payload.fallback !== false) {
+          const used = await env.DATABASE_V2.prepare("SELECT DISTINCT provider FROM jobs WHERE scene_id=? AND provider IS NOT NULL").bind(job.scene_id).all();
+          const usedProviders = (used.results || []).map(r => r.provider).filter(Boolean);
+          if (usedProviders.length < 4) {
+            const scene = await env.DATABASE_V2.prepare("SELECT * FROM scenes WHERE id=? AND project_id=?").bind(job.scene_id, projectId).first();
+            if (scene) {
+              const retry = await submitSceneJob(env, project, scene, request, {
+                vendor: "auto",
+                fallback: true,
+                reference: await getReference(),
+                excludeProviders: usedProviders
+              });
+              if (retry && !retry.error) {
+                await env.DATABASE_V2.prepare("UPDATE scenes SET status='queued',updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(job.scene_id).run();
+              }
+            }
+          }
+        }
+      }
     } catch (error) {
       await env.DATABASE_V2.prepare(
         "UPDATE jobs SET error_message=?,updated_at=CURRENT_TIMESTAMP WHERE id=?"
@@ -614,7 +651,7 @@ export default {
         const projectId = safeText(url.searchParams.get("projectId") || "", 120);
         const project = await env.DATABASE_V2.prepare("SELECT id FROM projects WHERE id=? AND user_id=?").bind(projectId, session.id).first();
         if (!project) return withSession(json({ error: "Project tidak ditemukan." }, 404), session);
-        const synced = await syncProjectJobs(env, projectId, session.id);
+        const synced = await syncProjectJobs(env, projectId, session.id, request);
         return withSession(json(synced), session);
       }
       if (url.pathname === "/api/storage/upload" && request.method === "POST") {
