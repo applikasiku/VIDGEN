@@ -1,4 +1,4 @@
-# VIDGEN V1.2
+# VIDGEN V1.3
 
 VIDGEN adalah **AI Multi-Vendor Music Video Generator** berbasis Cloudflare Workers + Static Assets.
 
@@ -197,3 +197,19 @@ VIDGEN 1.2.0 menambahkan workflow produksi berikut:
 - Versi frontend/backend/PWA disinkronkan ke 1.2.0.
 
 Catatan: v1.2.0 menyimpan dan mengelola reference image secara nyata di R2. Direct image-conditioning ke setiap provider AI tetap mengikuti kemampuan/API provider dan dapat ditambahkan pada adapter provider berikutnya.
+
+
+## Rilis 1.3.0
+
+VIDGEN 1.3.0 mengubah editor menjadi workspace project yang bisa dilanjutkan:
+
+- Audio otomatis diupload ke Cloudflare R2 saat dipilih (maksimal 50 MB pada endpoint aplikasi).
+- Project menyimpan nama dan R2 key audio sehingga draft dapat dibuka kembali.
+- Endpoint aman untuk memutar kembali audio project dari R2.
+- Project dapat dibuka, diedit, disimpan ulang, atau dihapus dari menu Proyek.
+- Tombol Simpan Draft tersedia sebelum render.
+- Reference image terpilih disimpan sebagai relasi project di D1 melalui tabel project_assets.
+- Saat project dibuka kembali, scene, render jobs, reference image, audio, genre, style, rasio, resolusi, vendor, dan priority dipulihkan ke editor.
+- Penghapusan project juga membersihkan audio project dari R2; scene/job/reference link dibersihkan melalui foreign-key cascade.
+- Memperbaiki bug selector genre pada Template preset.
+- Versi frontend/backend/PWA disinkronkan ke 1.3.0.
