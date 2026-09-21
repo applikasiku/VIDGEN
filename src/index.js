@@ -105,10 +105,21 @@ async function ensureSchema(env) {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       );
 
+      CREATE TABLE IF NOT EXISTS project_assets (
+        project_id TEXT NOT NULL,
+        asset_id TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'reference',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (project_id, asset_id, role),
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE CASCADE
+      );
+
       CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id, created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_scenes_project ON scenes(project_id, scene_index);
       CREATE INDEX IF NOT EXISTS idx_jobs_project ON jobs(project_id, created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_assets_user ON assets(user_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_project_assets_project ON project_assets(project_id, role);
     `;
     await env.DATABASE_V2.batch(schema.split(";").map(sql => sql.trim()).filter(Boolean).map(sql => env.DATABASE_V2.prepare(sql)));
     schemaReady = true;
@@ -192,7 +203,7 @@ export default {
       return json({
         ok: true,
         app: env.APP_NAME || "VIDGEN",
-        version: env.APP_VERSION || "1.2.0",
+        version: env.APP_VERSION || "1.3.0",
         runtime: "cloudflare-workers",
         time: new Date().toISOString()
       });
@@ -223,13 +234,27 @@ export default {
       if (url.pathname === "/api/bootstrap") {
         const drive = await driveStatus(env, session.id);
         const providers = providerCatalog(env);
-        const projects = await env.DATABASE_V2.prepare("SELECT id,title,status,aspect_ratio,resolution,created_at FROM projects WHERE user_id=? ORDER BY created_at DESC LIMIT 12").bind(session.id).all();
+        const projects = await env.DATABASE_V2.prepare("SELECT id,title,genre,status,aspect_ratio,resolution,audio_name,duration_seconds,created_at,updated_at FROM projects WHERE user_id=? ORDER BY updated_at DESC LIMIT 24").bind(session.id).all();
         const assets = await env.DATABASE_V2.prepare("SELECT id,kind,name,mime_type,size_bytes,created_at FROM assets WHERE user_id=? ORDER BY created_at DESC LIMIT 60").bind(session.id).all();
         return withSession(json({ mode: "cloudflare", providers, drive, projects: projects.results || [], assets: assets.results || [] }), session);
       }
       if (url.pathname === "/api/storyboard" && request.method === "POST") {
         const body = await bodyJson(request);
         return withSession(json({ scenes: storyboardFrom(body) }), session);
+      }
+      if (url.pathname === "/api/audio/upload" && request.method === "POST") {
+        const contentType = (request.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+        const allowed = ["audio/mpeg","audio/mp3","audio/wav","audio/x-wav","audio/mp4","audio/x-m4a","audio/aac","audio/ogg"];
+        if (!allowed.includes(contentType)) throw Object.assign(new Error("Audio harus MP3, WAV, M4A/AAC, atau OGG."), { status: 415 });
+        const contentLength = Number(request.headers.get("content-length") || 0);
+        if (contentLength > 50 * 1024 * 1024) throw Object.assign(new Error("Ukuran audio maksimal 50 MB."), { status: 413 });
+        if (!request.body) throw Object.assign(new Error("File audio kosong."), { status: 400 });
+        const rawName = safeText(url.searchParams.get("name") || "audio", 180);
+        const name = rawName.replace(/[^a-zA-Z0-9._ -]/g, "-").replace(/\s+/g, " ").trim() || "audio";
+        const safeName = name.replace(/\s+/g, "-");
+        const key = `${session.id}/audio/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
+        await env.STORAGE_V2.put(key, request.body, { httpMetadata: { contentType } });
+        return withSession(json({ ok: true, key, name, contentType }), session);
       }
       if (url.pathname === "/api/assets" && request.method === "GET") {
         const rows = await env.DATABASE_V2.prepare("SELECT id,kind,name,mime_type,size_bytes,created_at FROM assets WHERE user_id=? ORDER BY created_at DESC LIMIT 60").bind(session.id).all();
@@ -271,19 +296,84 @@ export default {
       }
       if (url.pathname === "/api/projects" && request.method === "POST") {
         const b = await bodyJson(request);
-        if (!Array.isArray(b.scenes) || b.scenes.length === 0 || b.scenes.length > 30) throw Object.assign(new Error("Proyek harus berisi 1–30 scene."), { status: 400 });
+        if (!Array.isArray(b.scenes) || b.scenes.length > 30) throw Object.assign(new Error("Proyek harus berisi maksimal 30 scene."), { status: 400 });
         if (b.scenes.some(s => !s || typeof s !== "object" || !safeText(s.prompt) || !Number.isFinite(Number(s.duration)) || Number(s.duration) <= 0 || !Number.isFinite(Number(s.start || 0)))) throw Object.assign(new Error("Data scene tidak valid."), { status: 400 });
         if (!Number.isFinite(Number(b.duration || 0))) throw Object.assign(new Error("Durasi tidak valid."), { status: 400 });
         const id = uid("prj");
-        const statements = [env.DATABASE_V2.prepare(`INSERT INTO projects (id,user_id,title,genre,concept,duration_seconds,style,aspect_ratio,resolution,router_mode,router_priority,save_to_drive,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-          .bind(id, session.id, safeText(b.title || "Untitled", 160), safeText(b.genre, 160), safeText(b.concept, 2000), Number(b.duration || 0), safeText(b.style || "cinematic", 50), safeText(b.aspectRatio || "16:9", 10), safeText(b.resolution || "1080p", 20), safeText(b.vendor || "auto", 40), safeText(b.priority || "quality", 40), b.saveToDrive === false ? 0 : 1, "draft")];
-        for (const [i, s] of (b.scenes || []).entries()) {
+        const audioName = safeText(b.audioName, 180);
+        const audioKey = safeText(b.audioR2Key, 700);
+        const referenceAssetId = safeText(b.referenceAssetId, 120);
+        const statements = [env.DATABASE_V2.prepare(`INSERT INTO projects (id,user_id,title,genre,concept,audio_name,audio_r2_key,duration_seconds,style,aspect_ratio,resolution,router_mode,router_priority,save_to_drive,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+          .bind(id, session.id, safeText(b.title || "Untitled", 160), safeText(b.genre, 160), safeText(b.concept, 2000), audioName || null, audioKey || null, Number(b.duration || 0), safeText(b.style || "cinematic", 50), safeText(b.aspectRatio || "16:9", 10), safeText(b.resolution || "1080p", 20), safeText(b.vendor || "auto", 40), safeText(b.priority || "quality", 40), b.saveToDrive === false ? 0 : 1, "draft")];
+        for (const [i, s] of b.scenes.entries()) {
           statements.push(env.DATABASE_V2.prepare(`INSERT INTO scenes (id,project_id,scene_index,title,prompt,start_seconds,duration_seconds,vendor,status) VALUES (?,?,?,?,?,?,?,?,?)`)
             .bind(uid("scn"), id, i, safeText(s.title, 160), safeText(s.prompt, 5000), Number(s.start || 0), Number(s.duration || 8), safeText(s.vendor || "auto", 40), "draft"));
+        }
+        if (referenceAssetId) {
+          statements.push(env.DATABASE_V2.prepare("INSERT OR IGNORE INTO project_assets (project_id,asset_id,role) SELECT ?,id,'reference' FROM assets WHERE id=? AND user_id=?")
+            .bind(id, referenceAssetId, session.id));
         }
         await env.DATABASE_V2.batch(statements);
         return withSession(json({ ok: true, id }, 201), session);
       }
+
+      const projectMatch = url.pathname.match(/^\/api\/projects\/([^/]+)(?:\/(audio))?$/);
+      if (projectMatch) {
+        const projectId = safeText(projectMatch[1], 120);
+        const project = await env.DATABASE_V2.prepare("SELECT * FROM projects WHERE id=? AND user_id=?").bind(projectId, session.id).first();
+        if (!project) return withSession(json({ error: "Project tidak ditemukan." }, 404), session);
+
+        if (projectMatch[2] === "audio" && request.method === "GET") {
+          if (!project.audio_r2_key) return withSession(json({ error: "Project tidak memiliki audio tersimpan." }, 404), session);
+          const object = await env.STORAGE_V2.get(project.audio_r2_key);
+          if (!object) return withSession(json({ error: "Audio tidak ditemukan di R2." }, 404), session);
+          const headers = new Headers({
+            "content-type": object.httpMetadata?.contentType || "audio/mpeg",
+            "cache-control": "private, max-age=300",
+            "accept-ranges": "bytes"
+          });
+          if (object.etag) headers.set("etag", object.etag);
+          return withSession(new Response(object.body, { headers }), session);
+        }
+
+        if (!projectMatch[2] && request.method === "GET") {
+          const scenes = await env.DATABASE_V2.prepare("SELECT * FROM scenes WHERE project_id=? ORDER BY scene_index").bind(projectId).all();
+          const jobs = await env.DATABASE_V2.prepare("SELECT * FROM jobs WHERE project_id=? ORDER BY created_at DESC").bind(projectId).all();
+          const reference = await env.DATABASE_V2.prepare("SELECT a.id,a.kind,a.name,a.mime_type,a.size_bytes,a.created_at FROM project_assets pa JOIN assets a ON a.id=pa.asset_id WHERE pa.project_id=? AND pa.role='reference' AND a.user_id=? LIMIT 1").bind(projectId, session.id).first();
+          return withSession(json({ project, scenes: scenes.results || [], jobs: jobs.results || [], reference: reference || null }), session);
+        }
+
+        if (!projectMatch[2] && request.method === "PUT") {
+          const b = await bodyJson(request);
+          if (!Array.isArray(b.scenes) || b.scenes.length > 30) throw Object.assign(new Error("Proyek harus berisi maksimal 30 scene."), { status: 400 });
+          if (b.scenes.some(s => !s || typeof s !== "object" || !safeText(s.prompt) || !Number.isFinite(Number(s.duration)) || Number(s.duration) <= 0 || !Number.isFinite(Number(s.start || 0)))) throw Object.assign(new Error("Data scene tidak valid."), { status: 400 });
+          const audioName = safeText(b.audioName || project.audio_name, 180);
+          const audioKey = safeText(b.audioR2Key || project.audio_r2_key, 700);
+          const referenceAssetId = safeText(b.referenceAssetId, 120);
+          const statements = [
+            env.DATABASE_V2.prepare("UPDATE projects SET title=?,genre=?,concept=?,audio_name=?,audio_r2_key=?,duration_seconds=?,style=?,aspect_ratio=?,resolution=?,router_mode=?,router_priority=?,save_to_drive=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?")
+              .bind(safeText(b.title || "Untitled",160),safeText(b.genre,160),safeText(b.concept,2000),audioName||null,audioKey||null,Number(b.duration||0),safeText(b.style||"cinematic",50),safeText(b.aspectRatio||"16:9",10),safeText(b.resolution||"1080p",20),safeText(b.vendor||"auto",40),safeText(b.priority||"quality",40),b.saveToDrive===false?0:1,projectId,session.id),
+            env.DATABASE_V2.prepare("DELETE FROM scenes WHERE project_id=?").bind(projectId),
+            env.DATABASE_V2.prepare("DELETE FROM project_assets WHERE project_id=? AND role='reference'").bind(projectId)
+          ];
+          for (const [i, s] of b.scenes.entries()) {
+            statements.push(env.DATABASE_V2.prepare(`INSERT INTO scenes (id,project_id,scene_index,title,prompt,start_seconds,duration_seconds,vendor,status) VALUES (?,?,?,?,?,?,?,?,?)`)
+              .bind(uid("scn"), projectId, i, safeText(s.title,160), safeText(s.prompt,5000), Number(s.start||0), Number(s.duration||8), safeText(s.vendor||"auto",40), "draft"));
+          }
+          if (referenceAssetId) {
+            statements.push(env.DATABASE_V2.prepare("INSERT OR IGNORE INTO project_assets (project_id,asset_id,role) SELECT ?,id,'reference' FROM assets WHERE id=? AND user_id=?").bind(projectId,referenceAssetId,session.id));
+          }
+          await env.DATABASE_V2.batch(statements);
+          return withSession(json({ ok: true, id: projectId }), session);
+        }
+
+        if (!projectMatch[2] && request.method === "DELETE") {
+          await env.DATABASE_V2.prepare("DELETE FROM projects WHERE id=? AND user_id=?").bind(projectId, session.id).run();
+          if (project.audio_r2_key) await env.STORAGE_V2.delete(project.audio_r2_key);
+          return withSession(json({ ok: true }), session);
+        }
+      }
+
       if (url.pathname === "/api/generate" && request.method === "POST") {
         const b = await bodyJson(request);
         const projectId = safeText(b.projectId, 100);
