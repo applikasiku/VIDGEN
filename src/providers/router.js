@@ -5,10 +5,19 @@ const ROUTES = {
   cost: ["luma", "seedance", "runway", "veo"]
 };
 
-export function pickProvider({ vendor = "auto", priority = "quality", sceneIndex = 0 }) {
-  if (vendor && vendor !== "auto") return vendor;
+export function providerCandidates({ vendor = "auto", priority = "quality", sceneIndex = 0, fallback = true }) {
   const route = ROUTES[priority] || ROUTES.quality;
-  return route[sceneIndex % route.length];
+  if (vendor && vendor !== "auto") {
+    if (!fallback) return [vendor];
+    return [vendor, ...route.filter(v => v !== vendor)];
+  }
+  if (!fallback) return [route[sceneIndex % route.length]];
+  const offset = sceneIndex % route.length;
+  return [...route.slice(offset), ...route.slice(0, offset)];
+}
+
+export function pickProvider({ vendor = "auto", priority = "quality", sceneIndex = 0 }) {
+  return providerCandidates({ vendor, priority, sceneIndex, fallback: false })[0];
 }
 
 export function providerCatalog(env) {
