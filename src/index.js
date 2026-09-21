@@ -160,7 +160,7 @@ export default {
       return json({
         ok: true,
         app: env.APP_NAME || "VIDGEN",
-        version: env.APP_VERSION || "1.0.4",
+        version: env.APP_VERSION || "1.1.0",
         runtime: "cloudflare-workers",
         time: new Date().toISOString()
       });
